@@ -227,6 +227,11 @@ function transformQuestion(
 ): ScholarQuestion {
   const correctAnswerUpper = (raw.answer || 'a').toUpperCase();
 
+  // ALOC image URLs follow the pattern: /storage/questions/{id}.png
+  const imageUrl = raw.image
+    ? (raw.image.startsWith('http') ? raw.image : `https://questions.aloc.com.ng${raw.image}`)
+    : null;
+
   return {
     alocId: raw.id,
     text: raw.question,
@@ -243,6 +248,7 @@ function transformQuestion(
     exam,
     year,
     hasImage: !!raw.image,
+    imageUrl,
     seededAt: serverTimestamp(),
   };
 }

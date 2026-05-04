@@ -105,6 +105,7 @@ interface Question {
   explanation: string;
   topic: string;
   subject: string;
+  imageUrl?: string | null;
 }
 
 interface ExamAttempt {
@@ -869,6 +870,374 @@ const FreeTierBanner = ({ onUpgrade }: { onUpgrade: () => void }) => (
     </button>
   </motion.div>
 );
+
+// ============================================================
+// COMPONENT: React Error Boundary
+// Prevents one component crash from killing the whole app
+// ============================================================
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode; fallback?: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('[ScholarOS] Component error:', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback || (
+        <div className="flex flex-col items-center justify-center h-full gap-6 p-8 text-center"
+          style={{background:'var(--s-panel)'}}>
+          <div className="text-4xl">⚠️</div>
+          <div>
+            <div className="text-white font-black uppercase tracking-widest text-sm scholar-heading mb-2">System Error</div>
+            <div className="text-white/40 text-xs font-mono">{this.state.error?.message || 'Unknown error'}</div>
+          </div>
+          <button onClick={() => this.setState({ hasError: false, error: null })}
+            className="px-5 py-2 text-white text-[10px] font-black uppercase tracking-widest rounded-xl"
+            style={{background:'var(--s-green)'}}>
+            Restart Module
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// ============================================================
+// COMPONENT: Question Image Renderer
+// ============================================================
+const QuestionImage = ({ url }: { url: string }) => {
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [zoomed, setZoomed] = useState(false);
+
+  if (failed) return null;
+
+  return (
+    <>
+      <div
+        onClick={() => setZoomed(true)}
+        className="relative rounded-xl overflow-hidden border cursor-zoom-in mb-6"
+        style={{borderColor:'rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', minHeight: loaded ? 'auto' : 120}}>
+        {!loaded && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-6 h-6 rounded-full border-2 border-white/10 border-t-white/60 animate-spin" />
+          </div>
+        )}
+        <img
+          src={url}
+          alt="Question diagram"
+          onLoad={() => setLoaded(true)}
+          onError={() => setFailed(true)}
+          className={`w-full max-h-64 object-contain p-3 transition-opacity ${loaded ? 'opacity-100' : 'opacity-0'}`}
+          style={{background:'white'}}
+        />
+        {loaded && (
+          <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest text-white/40"
+            style={{background:'rgba(0,0,0,0.5)'}}>
+            Tap to zoom
+          </div>
+        )}
+      </div>
+
+      {zoomed && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          onClick={() => setZoomed(false)}
+          className="fixed inset-0 z-[500] flex items-center justify-center cursor-zoom-out"
+          style={{background:'rgba(0,0,0,0.95)'}}>
+          <img src={url} alt="Question diagram zoomed" className="max-w-[90vw] max-h-[90vh] object-contain" style={{background:'white', borderRadius:8, padding:16}} />
+          <button className="absolute top-4 right-4 text-white/60 hover:text-white" onClick={() => setZoomed(false)}>
+            <X size={24} />
+          </button>
+        </motion.div>
+      )}
+    </>
+  );
+};
+
+// ============================================================
+// COMPONENT: Report Question Modal
+// ============================================================
+const REPORT_REASONS = [
+  'Wrong answer given',
+  'Question text is incorrect or unclear',
+  'Image is missing or broken',
+  'Duplicate question',
+  'Outdated / no longer relevant',
+  'Other',
+];
+
+const ReportModal = ({ question, onClose }: { question: Question; onClose: () => void }) => {
+  const [reason, setReason] = useState('');
+  const [details, setDetails] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!reason) return;
+    setLoading(true);
+    try {
+      await axios.post('/api/questions/report', {
+        questionText: question.text,
+        subject: question.subject,
+        exam: question.topic,
+        reason,
+        details,
+      });
+      setSubmitted(true);
+      SoundEngine.play('unlock');
+    } catch {}
+    setLoading(false);
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[400] flex items-center justify-center p-4"
+      style={{background:'rgba(0,0,0,0.8)', backdropFilter:'blur(12px)'}}>
+      <motion.div initial={{ scale: 0.95, y: 16 }} animate={{ scale: 1, y: 0 }}
+        className="w-full max-w-sm rounded-3xl p-7 shadow-2xl"
+        style={{background:'var(--s-panel)', border:'1px solid rgba(255,255,255,0.07)'}}>
+        {submitted ? (
+          <div className="flex flex-col items-center gap-5 text-center">
+            <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{background:'rgba(13,126,58,0.2)', border:'1px solid rgba(13,126,58,0.3)'}}>
+              <Check size={28} style={{color:'var(--s-green-lt)'}} />
+            </div>
+            <div>
+              <h3 className="text-white scholar-heading text-lg mb-1">Report Submitted</h3>
+              <p className="text-white/40 text-xs">Thank you for improving ScholarOS. We will review this question shortly.</p>
+            </div>
+            <button onClick={onClose} className="px-6 py-2.5 text-white text-[10px] font-black uppercase tracking-widest rounded-xl" style={{background:'var(--s-green)'}}>Close</button>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-white scholar-heading">Report Question</h3>
+              <button onClick={onClose} className="text-white/30 hover:text-white/60"><X size={18} /></button>
+            </div>
+            <div className="text-white/50 text-[10px] mb-4 p-3 rounded-lg line-clamp-2" style={{background:'rgba(255,255,255,0.03)'}}>
+              {question.text.substring(0, 120)}...
+            </div>
+            <div className="flex flex-col gap-2 mb-4">
+              {REPORT_REASONS.map(r => (
+                <button key={r} onClick={() => setReason(r)}
+                  className="text-left px-3 py-2.5 rounded-xl text-xs font-medium transition-all"
+                  style={{
+                    background: reason === r ? 'rgba(201,160,80,0.12)' : 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${reason === r ? 'rgba(201,160,80,0.35)' : 'rgba(255,255,255,0.06)'}`,
+                    color: reason === r ? 'var(--s-gold)' : 'rgba(255,255,255,0.5)'
+                  }}>
+                  {r}
+                </button>
+              ))}
+            </div>
+            {reason === 'Other' && (
+              <textarea value={details} onChange={e => setDetails(e.target.value)} rows={2} placeholder="Tell us more..."
+                className="w-full mb-4 px-3 py-2 text-xs text-white rounded-xl resize-none focus:outline-none"
+                style={{background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)'}} />
+            )}
+            <button onClick={handleSubmit} disabled={!reason || loading}
+              className="w-full py-3 text-[10px] font-black uppercase tracking-widest rounded-xl text-white transition-all disabled:opacity-40"
+              style={{background:'var(--s-crimson)'}}>
+              {loading ? 'Submitting...' : 'Submit Report'}
+            </button>
+          </>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+};
+
+// ============================================================
+// COMPONENT: Subscription / Pricing Tiers
+// ============================================================
+const PRICING_PLANS = [
+  {
+    id: 'standard',
+    name: 'Standard',
+    price: '₦2,500',
+    period: 'per exam',
+    color: 'var(--s-green)',
+    features: ['One exam category (e.g. JAMB)', 'All years in database', 'AI Tutor (Cerebro)', 'Study & Exam modes', 'Mistakes Bank'],
+    paystack_amount: 250000,
+    popular: false,
+  },
+  {
+    id: 'pro',
+    name: 'Pro Bundle',
+    price: '₦6,500',
+    period: 'all exams',
+    color: 'var(--s-gold)',
+    features: ['ALL exam categories unlocked', 'Full JAMB 4-subject simulation', 'Priority AI explanations', 'Scholar-Print personalized mocks', 'Study schedule + analytics'],
+    paystack_amount: 650000,
+    popular: true,
+  },
+  {
+    id: 'monthly',
+    name: 'Monthly',
+    price: '₦1,800',
+    period: 'per month',
+    color: 'var(--s-royal)',
+    features: ['Access all exams monthly', 'Cancel anytime', 'New questions as they are added', 'All Pro features included'],
+    paystack_amount: 180000,
+    popular: false,
+  },
+];
+
+const PricingModal = ({ user, onClose, onSuccess }: { user: any; onClose: () => void; onSuccess: (modules: string[]) => void }) => {
+  const [selected, setSelected] = useState('pro');
+  const [loading, setLoading] = useState(false);
+
+  const handlePurchase = async () => {
+    const plan = PRICING_PLANS.find(p => p.id === selected);
+    if (!plan || !user?.email) return;
+    setLoading(true);
+    try {
+      const res = await axios.post('/api/register', {
+        username: user.username,
+        email: user.email,
+        phone: user.phone || '00000000000',
+        examCategory: selected === 'pro' ? 'ALL' : user.examCategory,
+        amount: plan.paystack_amount,
+      });
+      if (res.data.authorization_url) {
+        window.location.href = res.data.authorization_url;
+      }
+    } catch (err: any) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[300] flex items-center justify-center p-4"
+      style={{background:'rgba(0,0,0,0.85)', backdropFilter:'blur(16px)'}}>
+      <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }}
+        className="w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden"
+        style={{background:'var(--s-panel)', border:'1px solid rgba(255,255,255,0.07)'}}>
+
+        <div className="p-8 border-b" style={{borderColor:'var(--s-rim)'}}>
+          <div className="flex justify-between items-start">
+            <div>
+              <h2 className="text-white text-2xl scholar-heading">Unlock ScholarOS</h2>
+              <p className="text-white/40 text-xs mt-1">Choose a plan that fits your study goal</p>
+            </div>
+            <button onClick={onClose} className="text-white/30 hover:text-white"><X size={20} /></button>
+          </div>
+        </div>
+
+        <div className="p-6 grid grid-cols-3 gap-4">
+          {PRICING_PLANS.map(plan => (
+            <button key={plan.id} onClick={() => setSelected(plan.id)}
+              className="relative p-5 rounded-2xl text-left transition-all flex flex-col gap-3"
+              style={{
+                background: selected === plan.id ? `rgba(201,160,80,0.08)` : 'rgba(255,255,255,0.03)',
+                border: `1px solid ${selected === plan.id ? 'rgba(201,160,80,0.4)' : 'rgba(255,255,255,0.07)'}`,
+              }}>
+              {plan.popular && (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest text-white"
+                  style={{background:'var(--s-gold)', color:'var(--s-void)'}}>
+                  Most Popular
+                </div>
+              )}
+              <div>
+                <div className="text-white text-xs font-black uppercase tracking-widest">{plan.name}</div>
+                <div className="flex items-baseline gap-1 mt-1">
+                  <span className="text-2xl font-black text-white scholar-mono">{plan.price}</span>
+                  <span className="text-white/30 text-[10px]">/{plan.period}</span>
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {plan.features.map((f, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{background: selected === plan.id ? 'var(--s-gold)' : 'rgba(255,255,255,0.2)'}} />
+                    <span className="text-[10px] text-white/50">{f}</span>
+                  </div>
+                ))}
+              </div>
+            </button>
+          ))}
+        </div>
+
+        <div className="p-6 pt-2">
+          <button onClick={handlePurchase} disabled={loading}
+            className="w-full py-4 text-white font-black uppercase tracking-widest rounded-xl transition-all disabled:opacity-50 scholar-heading"
+            style={{background:'linear-gradient(135deg, var(--s-green) 0%, #0D7E3A 100%)', boxShadow:'0 8px 32px rgba(13,126,58,0.35)'}}>
+            {loading ? 'Redirecting to Paystack...' : `Pay with Paystack — ${PRICING_PLANS.find(p=>p.id===selected)?.price}`}
+          </button>
+          <p className="text-center text-white/20 text-[9px] mt-3 uppercase tracking-widest">Secure payment via Paystack. Nigerian Naira. Instant access.</p>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+// ============================================================
+// COMPONENT: Push Notification Setup (runs on desktop load)
+// ============================================================
+const usePushNotifications = (user: any) => {
+  useEffect(() => {
+    if (!user?.id || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+
+    const setupPush = async () => {
+      try {
+        // Register service worker
+        const reg = await navigator.serviceWorker.register('/sw.js');
+
+        // Get VAPID key
+        const vapidRes = await axios.get('/api/push/vapid-key');
+        const vapidKey = vapidRes.data.publicKey;
+        if (!vapidKey) return;
+
+        // Check permission
+        if (Notification.permission === 'denied') return;
+        if (Notification.permission === 'default') {
+          // Wait 30s before asking — don't interrupt on first login
+          setTimeout(async () => {
+            const perm = await Notification.requestPermission();
+            if (perm !== 'granted') return;
+            await subscribePush(reg, vapidKey);
+          }, 30000);
+          return;
+        }
+
+        await subscribePush(reg, vapidKey);
+      } catch {}
+    };
+
+    const subscribePush = async (reg: ServiceWorkerRegistration, vapidKey: string) => {
+      const existing = await reg.pushManager.getSubscription();
+      if (existing) {
+        await axios.post('/api/push/subscribe', { subscription: existing }).catch(() => {});
+        return;
+      }
+
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
+      });
+      await axios.post('/api/push/subscribe', { subscription: sub }).catch(() => {});
+    };
+
+    setupPush();
+  }, [user?.id]);
+};
+
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+}
 
 // ============================================================
 // PREMIUM COMPONENT: Sound Engine
@@ -1840,7 +2209,7 @@ const OSWindow = ({ id, title, isOpen, isMinimized, isMaximized, onClose, onMini
 };
 
 const ResultCertificate = ({ user, score, total, examName }: { user: UserData | null, score: number, total: number, examName: string }) => (
-  <div className="flex flex-col items-center justify-center p-12 text-slate-900 shadow-2xl relative h-full parchment-bg"
+  <div id="scholar-certificate" className="flex flex-col items-center justify-center p-12 text-slate-900 shadow-2xl relative h-full parchment-bg"
     style={{border:'12px solid #1A1208'}}>
     <div className="absolute top-8 left-8 right-8 bottom-8 border border-slate-200 pointer-events-none" />
     <div className="flex flex-col items-center gap-4 mb-8">
@@ -1913,6 +2282,7 @@ const ExamContent = ({ examName, user, mode, setUser, questions = SAMPLE_JAMB_QU
   const [flaggedQuestions, setFlaggedQuestions] = useState<Set<number>>(new Set());
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [showResultWall, setShowResultWall] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
   const [pinInput, setPinInput] = useState("");
   const [isVerifyingPin, setIsVerifyingPin] = useState(false);
   const [isScoreUnlocked, setIsScoreUnlocked] = useState(false);
@@ -2241,18 +2611,33 @@ Student asked: ${textToSend}`,
         <div className="flex items-center gap-3 mb-8">
           <span className="px-2 py-1 bg-emerald-500/20 text-emerald-400 text-[10px] font-bold rounded border border-emerald-500/30 uppercase tracking-widest">{currentQuestion.topic}</span>
           <span className="text-white/30 text-[10px] uppercase font-bold tracking-widest">Question {currentQuestionIndex + 1} of {questions.length}</span>
-          <button 
-            onClick={() => {
-              const newFlags = new Set(flaggedQuestions);
-              if (newFlags.has(currentQuestion.id)) newFlags.delete(currentQuestion.id);
-              else newFlags.add(currentQuestion.id);
-              setFlaggedQuestions(newFlags);
-            }}
-            className={`ml-auto flex items-center gap-2 px-3 py-1 rounded-lg text-[10px] font-bold uppercase transition-all ${flaggedQuestions.has(currentQuestion.id) ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-white/5 hover:bg-white/10 text-white/40'}`}
-          >
-            {flaggedQuestions.has(currentQuestion.id) ? 'Flagged' : 'Flag for Review'}
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <button 
+              onClick={() => {
+                const newFlags = new Set(flaggedQuestions);
+                if (newFlags.has(currentQuestion.id)) newFlags.delete(currentQuestion.id);
+                else newFlags.add(currentQuestion.id);
+                setFlaggedQuestions(newFlags);
+              }}
+              className={`flex items-center gap-2 px-3 py-1 rounded-lg text-[10px] font-bold uppercase transition-all ${flaggedQuestions.has(currentQuestion.id) ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-white/5 hover:bg-white/10 text-white/40'}`}
+            >
+              {flaggedQuestions.has(currentQuestion.id) ? 'Flagged' : 'Flag'}
+            </button>
+            <button
+              onClick={() => setShowReportModal(true)}
+              className="flex items-center gap-1 px-3 py-1 rounded-lg text-[10px] font-bold uppercase transition-all bg-white/5 hover:bg-amber-500/10 text-white/30 hover:text-amber-400 border border-transparent hover:border-amber-500/20"
+              title="Report this question"
+            >
+              <HelpCircle size={10} /> Report
+            </button>
+          </div>
         </div>
+
+        {currentQuestion.imageUrl && (
+          <ErrorBoundary>
+            <QuestionImage url={currentQuestion.imageUrl} />
+          </ErrorBoundary>
+        )}
 
         <h2 className="text-2xl text-white font-medium mb-8 leading-relaxed">
           {currentQuestion.text}
@@ -2532,6 +2917,13 @@ Student asked: ${textToSend}`,
           </div>
         )}
       </div>
+
+      {/* Report Modal */}
+      <AnimatePresence>
+        {showReportModal && (
+          <ReportModal question={currentQuestion} onClose={() => setShowReportModal(false)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -2874,6 +3266,10 @@ const Taskbar = ({ onOpenSettings, openWindows, onToggleWindow, user }: {
 export default function App() {
   const [phase, setPhase] = useState<OSPhase>('BOOT');
   const [user, setUser] = useState<UserData | null>(null);
+  const [showPricing, setShowPricing] = useState(false);
+  
+  // Wire push notifications (auto-subscribes after login)
+  usePushNotifications(user);
   
   // Windows State Management
   const [windows, setWindows] = useState<Record<string, WindowConfig>>({
@@ -3069,6 +3465,7 @@ export default function App() {
         )}
 
         {phase === 'DESKTOP' && (
+          <ErrorBoundary>
           <motion.div 
             key="desktop" 
             initial={{ opacity: 0 }} 
@@ -3283,14 +3680,11 @@ export default function App() {
 
       <AnimatePresence>
         {showPremiumModal && (
-          <PremiumAccessModal 
-            examId={showPremiumModal} 
-            onClose={() => setShowPremiumModal(null)} 
-            onSuccess={(id) => {
-              if (user) {
-                user.purchased_modules.push(id);
-                setUser({ ...user });
-              }
+          <PricingModal
+            user={user}
+            onClose={() => setShowPremiumModal(null)}
+            onSuccess={(modules) => {
+              if (user) setUser({ ...user, purchased_modules: [...user.purchased_modules, ...modules] });
               setShowPremiumModal(null);
             }}
           />

@@ -32,9 +32,19 @@ import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
+import webpush from 'web-push';
 import fs from 'fs';
 
 dotenv.config();
+
+// Configure Web Push (VAPID keys from .env)
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    `mailto:${process.env.EMAIL_USER || 'admin@scholaros.ng'}`,
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -555,6 +565,7 @@ async function startServer() {
           explanation: data.explanation,
           topic: data.topic,
           subject: data.subject,
+          imageUrl: data.imageUrl || null,
         };
       });
 
@@ -837,6 +848,129 @@ async function startServer() {
       res.json({ success: isMatch });
     } catch (error: any) {
       res.status(500).json({ error: "Verification failed" });
+    }
+  });
+
+  // 6. Push Notification Endpoints
+
+  // 6a. Save push subscription
+  app.post("/api/push/subscribe", requireAuth, async (req, res) => {
+    try {
+      const { subscription } = req.body;
+      const userId = (req as any).user.userId;
+      if (!subscription?.endpoint) return res.status(400).json({ error: "Invalid subscription" });
+
+      await setDoc(doc(db, 'push_subscriptions', userId), {
+        userId,
+        subscription,
+        updatedAt: serverTimestamp()
+      });
+
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to save subscription" });
+    }
+  });
+
+  // 6b. Send push to a specific user (internal / admin use)
+  app.post("/api/push/send", async (req, res) => {
+    try {
+      const { userId, title, body, url } = req.body;
+      if (!userId) return res.status(400).json({ error: "userId required" });
+
+      const subDoc = await getDoc(doc(db, 'push_subscriptions', userId));
+      if (!subDoc.exists()) return res.json({ success: false, message: "No subscription found" });
+
+      const payload = JSON.stringify({ title, body, url: url || '/' });
+      await webpush.sendNotification(subDoc.data().subscription, payload);
+
+      res.json({ success: true });
+    } catch (err: any) {
+      // 410 Gone means subscription is expired — clean it up
+      if (err.statusCode === 410) {
+        await getDoc(doc(db, 'push_subscriptions', req.body.userId))
+          .then(d => d.exists() && d.ref.delete()).catch(() => {});
+      }
+      res.status(500).json({ error: "Push failed" });
+    }
+  });
+
+  // 6c. Daily reminder: broadcast to all subscribed users (call via cron job)
+  app.post("/api/push/broadcast-daily", async (req, res) => {
+    try {
+      const secret = req.headers['x-cron-secret'];
+      if (secret !== process.env.CRON_SECRET) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const snap = await getDocs(collection(db, 'push_subscriptions'));
+      let sent = 0, failed = 0;
+
+      for (const d of snap.docs) {
+        try {
+          await webpush.sendNotification(d.data().subscription, JSON.stringify({
+            title: 'ScholarOS',
+            body: "Ready for today's session? Keep your study streak alive! 🎓",
+            url: '/'
+          }));
+          sent++;
+        } catch (e: any) {
+          failed++;
+          if (e.statusCode === 410) d.ref.delete().catch(() => {});
+        }
+      }
+
+      res.json({ success: true, sent, failed });
+    } catch (err: any) {
+      res.status(500).json({ error: "Broadcast failed" });
+    }
+  });
+
+  // 6d. Get VAPID public key (needed by frontend to subscribe)
+  app.get("/api/push/vapid-key", (req, res) => {
+    res.json({ publicKey: process.env.VAPID_PUBLIC_KEY || '' });
+  });
+
+  // 7. Question Reporting
+  app.post("/api/questions/report", requireAuth, async (req, res) => {
+    try {
+      const { questionText, subject, exam, year, reason, details } = req.body;
+      const userId = (req as any).user.userId;
+
+      if (!questionText || !reason) return res.status(400).json({ error: "questionText and reason required" });
+
+      await addDoc(collection(db, 'reports'), {
+        questionText: questionText.substring(0, 500),
+        subject,
+        exam,
+        year,
+        reason,
+        details: details?.substring(0, 500) || '',
+        reportedBy: userId,
+        status: 'pending',
+        createdAt: serverTimestamp()
+      });
+
+      res.json({ success: true, message: "Report submitted. Thank you for improving ScholarOS." });
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to submit report" });
+    }
+  });
+
+  // 7b. Admin: get all reports
+  app.get("/api/admin/reports", requireAuth, async (req, res) => {
+    try {
+      const requester = (req as any).user;
+      if (!requester.isAdmin) return res.status(403).json({ error: "Admin only" });
+
+      const snap = await getDocs(
+        query(collection(db, 'reports'), where('status', '==', 'pending'), orderBy('createdAt', 'desc'), limit(50))
+      );
+
+      const reports = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      res.json({ success: true, reports });
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to fetch reports" });
     }
   });
 

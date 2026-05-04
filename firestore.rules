@@ -1,8 +1,46 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ---- Questions (public read, server-only write) ----
+    match /questions/{questionId} {
+      allow read: if true;
+      allow write: if false; // Only the seeder script (Admin SDK) can write
+    }
+
+    // ---- Users ----
+    match /users/{userId} {
+      // Anyone can create a user (registration)
+      allow create: if request.resource.data.keys().hasAll(['username','email','phone','examCategory','payment_status'])
+                    && request.resource.data.payment_status == 'pending';
+
+      // Only the server (Admin SDK) can update payment_status, hashedPin, purchased_modules
+      // Users cannot modify their own auth fields through the client SDK
+      allow update: if false;
+      allow delete: if false;
+
+      // Users can read their own document (future: if using client-side auth)
+      allow read: if false; // All reads go through the backend API with JWT validation
+    }
+
+    // ---- Results (server-only) ----
+    match /results/{resultId} {
+      allow read, write: if false; // All access through backend API
+    }
+
+    // ---- Reports (server-only) ----
+    match /reports/{reportId} {
+      allow read, write: if false;
+    }
+
+    // ---- Push subscriptions (server-only) ----
+    match /push_subscriptions/{subId} {
+      allow read, write: if false;
+    }
+
+    // Deny everything else by default
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }

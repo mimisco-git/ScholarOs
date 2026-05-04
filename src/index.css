@@ -200,3 +200,19 @@ html, body, #root {
 .bg-gold-400     { background-color: var(--s-gold); }
 .border-gold-400 { border-color: var(--s-gold); }
 .text-gold-300   { color: var(--s-gold-lt); }
+
+/* ---- Print / PDF Certificate ---- */
+@media print {
+  body * { visibility: hidden; }
+  #scholar-certificate,
+  #scholar-certificate * { visibility: visible; }
+  #scholar-certificate {
+    position: fixed !important;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    background: var(--s-parchment) !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
