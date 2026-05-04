@@ -53,6 +53,24 @@ import {
 
 import axios from 'axios';
 
+// ---- Axios auth interceptor ----
+// Automatically attaches the JWT token to every request after login
+axios.interceptors.request.use(config => {
+  const token = sessionStorage.getItem('scholar_token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+axios.interceptors.response.use(
+  res => res,
+  err => {
+    if (err.response?.status === 401) {
+      sessionStorage.removeItem('scholar_token');
+      window.location.reload(); // Force back to login
+    }
+    return Promise.reject(err);
+  }
+);
+
 // --- Types ---
 type OSPhase = 'BOOT' | 'LOCK' | 'REGISTRATION' | 'DESKTOP';
 type ExamMode = 'STUDY' | 'EXAM';
@@ -684,6 +702,174 @@ const LeaderboardWindow = () => {
     </div>
   );
 };
+// ============================================================
+// PREMIUM COMPONENT: Study Schedule Generator
+// ============================================================
+const StudyScheduleWindow = ({ user }: { user: UserData | null }) => {
+  const [schedule, setSchedule] = useState<{day: string; tasks: {subject: string; questions: number; exam: string}[]; done: boolean}[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [generated, setGenerated] = useState(false);
+
+  const generateSchedule = async () => {
+    if (!user?.examDate) return;
+    setLoading(true);
+
+    const examDate = new Date(user.examDate);
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const daysLeft = Math.max(1, Math.ceil((examDate.getTime() - today.getTime()) / 86400000));
+
+    // Determine exam subjects from examCategory
+    const subjectMap: Record<string, string[]> = {
+      'JAMB UTME':    ['Mathematics', 'Use of English', 'Physics', 'Biology', 'Chemistry', 'Economics'],
+      'WAEC WASSCE':  ['Mathematics', 'English', 'Physics', 'Biology', 'Chemistry', 'Economics'],
+      'NECO SSCE':    ['Mathematics', 'English', 'Biology', 'Physics', 'Chemistry'],
+      'ICAN':         ['Financial Accounting', 'Taxation', 'Audit', 'Law'],
+      'Bar Exams':    ['Criminal Law', 'Civil Procedure', 'Land Law'],
+    };
+
+    const subjects = subjectMap[user.examCategory] || ['Mathematics', 'English'];
+
+    // Find weak topics from topicPerformance
+    const weakSubjects = Object.entries(user.topicPerformance || {})
+      .sort(([,a],[,b]) => (a.correct/Math.max(a.total,1)) - (b.correct/Math.max(b.total,1)))
+      .slice(0, 3)
+      .map(([topic]) => {
+        // Map topic back to subject
+        if (topic.includes('ebra') || topic.includes('Calc') || topic.includes('Trig') || topic.includes('Log')) return 'Mathematics';
+        if (topic.includes('Chem') || topic.includes('Acid') || topic.includes('Mole')) return 'Chemistry';
+        if (topic.includes('Motion') || topic.includes('Wave') || topic.includes('Electric')) return 'Physics';
+        if (topic.includes('Cell') || topic.includes('Genet') || topic.includes('Eco')) return 'Biology';
+        return 'English';
+      });
+
+    const days: typeof schedule = [];
+    const phases = [
+      { name: 'Foundation',   qPerSubject: 20, daysShare: 0.4 },
+      { name: 'Intensive',    qPerSubject: 30, daysShare: 0.4 },
+      { name: 'Mock & Review',qPerSubject: 50, daysShare: 0.2 },
+    ];
+
+    let dayCount = 0;
+    for (const phase of phases) {
+      const phaseDays = Math.max(1, Math.floor(daysLeft * phase.daysShare));
+      let subjectIndex = 0;
+      for (let d = 0; d < phaseDays; d++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() + dayCount);
+        const dayLabel = date.toLocaleDateString('en-NG', { weekday:'short', month:'short', day:'numeric' });
+
+        const tasksForDay = [];
+        // Rotate through subjects, emphasize weak ones
+        const todaySubjects = [subjects[subjectIndex % subjects.length]];
+        if (weakSubjects[0] && weakSubjects[0] !== todaySubjects[0]) {
+          todaySubjects.push(weakSubjects[0]); // Always add weak subject as second task
+        }
+
+        for (const sub of todaySubjects) {
+          tasksForDay.push({ subject: sub, questions: phase.qPerSubject, exam: user.examCategory });
+        }
+
+        days.push({ day: dayLabel, tasks: tasksForDay, done: date < today });
+        subjectIndex++;
+        dayCount++;
+        if (dayCount >= daysLeft) break;
+      }
+      if (dayCount >= daysLeft) break;
+    }
+
+    setSchedule(days);
+    setGenerated(true);
+    setLoading(false);
+  };
+
+  return (
+    <div className="flex flex-col h-full" style={{background:'var(--s-panel)'}}>
+      <div className="p-6 border-b flex items-center justify-between" style={{borderColor:'var(--s-rim)'}}>
+        <div>
+          <h2 className="text-white text-xl scholar-heading">Study Schedule</h2>
+          <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest mt-1">
+            {user?.examDate ? `${Math.ceil((new Date(user.examDate).getTime()-Date.now())/86400000)} days until ${user.examName}` : 'Set your exam date first'}
+          </p>
+        </div>
+        {!generated && (
+          <button onClick={generateSchedule} disabled={!user?.examDate || loading}
+            className="px-5 py-2 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all disabled:opacity-40"
+            style={{background:'var(--s-green)', boxShadow:'0 4px 16px rgba(13,126,58,0.3)'}}>
+            {loading ? 'Generating...' : 'Generate My Plan'}
+          </button>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-y-auto no-scrollbar p-4">
+        {!user?.examDate ? (
+          <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-8">
+            <Clock size={40} className="text-white/10" />
+            <div className="text-white/30 text-sm scholar-heading">Set your exam date first</div>
+            <p className="text-white/20 text-xs">Click the countdown widget on your desktop to set your exam date, then come back to generate your schedule.</p>
+          </div>
+        ) : !generated ? (
+          <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-8">
+            <Brain size={40} className="text-white/10" />
+            <div className="text-white/30 text-sm scholar-heading">Ready to build your plan</div>
+            <p className="text-white/20 text-xs">Cerebro will analyze your weak topics and create a day-by-day study plan leading up to your exam.</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {schedule.slice(0, 30).map((day, i) => (
+              <div key={i} className={`rounded-xl p-4 border transition-all ${day.done ? 'opacity-40' : ''}`}
+                style={{background:'rgba(255,255,255,0.03)', borderColor:'rgba(255,255,255,0.06)'}}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="scholar-mono text-[10px] font-bold uppercase tracking-widest"
+                    style={{color: day.done ? 'var(--s-muted)' : 'var(--s-gold)'}}>{day.day}</span>
+                  {day.done && <Check size={12} className="text-emerald-500" />}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {day.tasks.map((task, j) => (
+                    <div key={j} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[10px] font-bold ${getSubjectColor(task.subject)}`}>
+                      <BookOpen size={10} />
+                      {task.subject} — {task.questions} questions
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {schedule.length > 30 && (
+              <p className="text-center text-white/20 text-[10px] py-4 scholar-mono">
+                ... and {schedule.length - 30} more days in your plan
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ============================================================
+// PREMIUM COMPONENT: Free Tier Banner
+// ============================================================
+const FREE_QUESTIONS_PER_SESSION = 5;
+
+const FreeTierBanner = ({ onUpgrade }: { onUpgrade: () => void }) => (
+  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+    className="mx-6 mb-4 p-4 rounded-2xl border flex items-center justify-between gap-4"
+    style={{background:'rgba(201,160,80,0.06)', borderColor:'rgba(201,160,80,0.2)'}}>
+    <div className="flex items-center gap-3">
+      <Sparkles size={18} style={{color:'var(--s-gold)'}} />
+      <div>
+        <div className="text-white text-xs font-bold">Free Preview</div>
+        <div className="text-white/40 text-[10px]">You have seen {FREE_QUESTIONS_PER_SESSION} free questions. Unlock the full archive.</div>
+      </div>
+    </div>
+    <button onClick={onUpgrade}
+      className="shrink-0 px-4 py-2 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all"
+      style={{background:'var(--s-gold)', color:'var(--s-void)'}}>
+      Unlock Full Access
+    </button>
+  </motion.div>
+);
+
 // ============================================================
 // PREMIUM COMPONENT: Sound Engine
 // ============================================================
@@ -1708,8 +1894,21 @@ const ResultCertificate = ({ user, score, total, examName }: { user: UserData | 
 
 const ExamContent = ({ examName, user, mode, setUser, questions = SAMPLE_JAMB_QUESTIONS }: { examName: string, user: UserData | null, mode: ExamMode | null, setUser: (user: UserData | null) => void, questions?: Question[] }) => {
   const startTime = useRef(Date.now());
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [selectedOptions, setSelectedOptions] = useState<Record<number, string>>({});
+  const saveKey = `scholar_exam_${examName.replace(/\s+/g,'_')}`;
+
+  // Restore saved progress on mount
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(() => {
+    try {
+      const saved = localStorage.getItem(saveKey);
+      return saved ? JSON.parse(saved).questionIndex : 0;
+    } catch { return 0; }
+  });
+  const [selectedOptions, setSelectedOptions] = useState<Record<number, string>>(() => {
+    try {
+      const saved = localStorage.getItem(saveKey);
+      return saved ? JSON.parse(saved).selectedOptions : {};
+    } catch { return {}; }
+  });
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [flaggedQuestions, setFlaggedQuestions] = useState<Set<number>>(new Set());
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -1751,6 +1950,23 @@ const ExamContent = ({ examName, user, mode, setUser, questions = SAMPLE_JAMB_QU
     }, 1000);
     return () => clearInterval(timer);
   }, [activeSubject, mode, isSubmitted]);
+
+  // Auto-save progress every 15 seconds
+  useEffect(() => {
+    if (isSubmitted) {
+      localStorage.removeItem(saveKey);
+      return;
+    }
+    const saver = setInterval(() => {
+      localStorage.setItem(saveKey, JSON.stringify({
+        questionIndex: currentQuestionIndex,
+        selectedOptions,
+        subjectTimes,
+        savedAt: Date.now(),
+      }));
+    }, 15000);
+    return () => clearInterval(saver);
+  }, [currentQuestionIndex, selectedOptions, subjectTimes, isSubmitted, saveKey]);
 
   // Handle Exam Auto-Submit
   useEffect(() => {
@@ -2681,6 +2897,12 @@ export default function App() {
   const [showSetExamDate, setShowSetExamDate] = useState(false);
   const [showMistakesBank, setShowMistakesBank] = useState(false);
   const [showAdminDash, setShowAdminDash] = useState(false);
+  const [showStudySchedule, setShowStudySchedule] = useState(false);
+  
+  // Free tier: track how many questions a non-paying user has seen
+  const [freeQuestionsUsed, setFreeQuestionsUsed] = useState(0);
+  const isFreeTier = user ? user.purchased_modules.length === 0 : false;
+  const hitFreeLimit = isFreeTier && freeQuestionsUsed >= FREE_QUESTIONS_PER_SESSION;
 
   const getScholarPrintQuestions = (userData: UserData | null) => {
     if (!userData || !userData.topicPerformance || Object.keys(userData.topicPerformance).length === 0) {
@@ -2814,6 +3036,10 @@ export default function App() {
                 const response = await axios.post('/api/login', { username, pin });
                 if (response.data.success) {
                   SoundEngine.play('unlock');
+                  // Store JWT for all subsequent requests
+                  if (response.data.token) {
+                    sessionStorage.setItem('scholar_token', response.data.token);
+                  }
                   setUser(response.data.user);
                   setPhase('DESKTOP');
                   return true;
@@ -2926,6 +3152,12 @@ export default function App() {
                 icon={<BookOpen />} 
                 color="bg-red-500" 
                 onClick={() => setShowMistakesBank(true)}
+              />
+              <DesktopIcon 
+                label="Study Schedule" 
+                icon={<Clock />} 
+                color="bg-[#1D4ED8]" 
+                onClick={() => setShowStudySchedule(true)}
               />
               {user?.isAdmin && (
                 <DesktopIcon 
@@ -3157,6 +3389,27 @@ export default function App() {
                     toggleWindowState('exam', { isOpen: true, isMinimized: false, title: 'Mistakes Bank - Revision Session' });
                   }}
                 />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Study Schedule Modal */}
+      <AnimatePresence>
+        {showStudySchedule && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center backdrop-blur-md p-4"
+            style={{background:'rgba(5,9,15,0.8)'}}>
+            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }}
+              className="w-full max-w-2xl h-[80vh] rounded-3xl overflow-hidden flex flex-col"
+              style={{background:'var(--s-panel)', border:'1px solid rgba(255,255,255,0.07)', boxShadow:'0 40px 100px rgba(0,0,0,0.6)'}}>
+              <div className="flex items-center justify-between px-6 py-4 border-b" style={{borderColor:'var(--s-rim)'}}>
+                <span className="text-white font-black uppercase tracking-widest text-sm scholar-heading">Study Schedule</span>
+                <button onClick={() => setShowStudySchedule(false)} className="text-white/40 hover:text-red-400 transition-colors"><X size={20} /></button>
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <StudyScheduleWindow user={user} />
               </div>
             </motion.div>
           </motion.div>

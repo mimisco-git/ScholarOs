@@ -1,4 +1,8 @@
 import express from "express";
+import jwt from "jsonwebtoken";
+import rateLimit from "express-rate-limit";
+import cors from "cors";
+import helmet from "helmet";
 import path from "path";
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -57,7 +61,63 @@ const ADMIN_EMAILS = ['mimisco4life@gmail.com'];
 
 async function startServer() {
   const app = express();
+  
+  // Security middleware
+  app.use(helmet({ contentSecurityPolicy: false })); // CSP disabled: Vite dev handles it
+  app.use(cors({
+    origin: process.env.APP_URL || 'http://localhost:3000',
+    credentials: true,
+  }));
   app.use(express.json());
+
+  // Rate limiting
+  const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10,                   // 10 attempts per IP per window
+    message: { error: 'Too many login attempts. Try again in 15 minutes.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  const apiLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 60,
+    message: { error: 'Too many requests. Slow down.' },
+  });
+
+  app.use('/api/', apiLimiter);
+  app.use('/api/login', loginLimiter);
+  app.use('/api/forgot-pin', loginLimiter);
+
+  // JWT helpers
+  const JWT_SECRET = process.env.JWT_SECRET || 'scholar-os-dev-secret-change-in-production';
+  const JWT_EXPIRES = '7d';
+
+  const signToken = (userId: string, username: string, isAdmin: boolean) =>
+    jwt.sign({ userId, username, isAdmin }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
+
+  const verifyToken = (token: string): { userId: string; username: string; isAdmin: boolean } | null => {
+    try {
+      return jwt.verify(token, JWT_SECRET) as any;
+    } catch {
+      return null;
+    }
+  };
+
+  // Auth middleware for protected routes
+  const requireAuth = (req: any, res: any, next: any) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    const token = authHeader.slice(7);
+    const payload = verifyToken(token);
+    if (!payload) {
+      return res.status(401).json({ error: 'Invalid or expired session. Please log in again.' });
+    }
+    req.user = payload;
+    next();
+  };
 
   const PORT = 3000;
 
@@ -254,8 +314,8 @@ async function startServer() {
         return res.status(400).json({ error: "Username and PIN are required" });
       }
 
-      // Admin Bypass for Testing
-      if (username === 'admin' && pin === '000000') {
+      // Admin Bypass (only active when ENABLE_ADMIN_BYPASS=true in .env)
+      if (process.env.ENABLE_ADMIN_BYPASS === 'true' && username === 'admin' && pin === '000000') {
         const adminEmail = ADMIN_EMAILS[0];
         // Try to find if user exists with this email
         const qAdmin = query(collection(db, 'users'), where('email', '==', adminEmail));
@@ -264,14 +324,16 @@ async function startServer() {
         if (!userSnapshot.empty) {
           const userDoc = userSnapshot.docs[0];
           const userData = userDoc.data();
+          const adminToken = signToken(userDoc.id, userData.username, true);
           return res.json({ 
-            success: true, 
+            success: true,
+            token: adminToken,
             user: { 
               id: userDoc.id,
               username: userData.username, 
               email: userData.email,
               examCategory: userData.examCategory,
-              purchased_modules: ['foundation', 'university', 'professional', 'opportunity'], // Grant all for admin
+              purchased_modules: ['foundation', 'university', 'professional', 'opportunity'],
               xp: userData.xp || 0,
               streak: userData.streak || 0,
               badges: userData.badges || [],
@@ -281,8 +343,10 @@ async function startServer() {
           });
         } else {
           // Create a temporary mock admin session for testing if user doesn't exist yet
+          const mockToken = signToken('admin-test-id', 'AdminTest', true);
           return res.json({
             success: true,
+            token: mockToken,
             user: {
               id: 'admin-test-id',
               username: 'AdminTest',
@@ -318,9 +382,11 @@ async function startServer() {
         return res.status(401).json({ error: "Invalid username or PIN" });
       }
 
-      // Login success - return full profile so frontend analytics work
+      // Login success - return full profile + JWT
+      const token = signToken(userDoc.id, userData.username, false);
       res.json({ 
-        success: true, 
+        success: true,
+        token,
         user: { 
           id: userDoc.id,
           username: userData.username, 
@@ -347,7 +413,7 @@ async function startServer() {
   });
 
   // 4. Save Results & Update User Stats
-  app.post("/api/results", async (req, res) => {
+  app.post("/api/results", requireAuth, async (req, res) => {
     try {
       const { userId, examType, year, score, total, incorrectQuestions, topicStats } = req.body;
       
@@ -673,7 +739,7 @@ async function startServer() {
   });
 
   // 5c. Save a question to Mistakes Bank
-  app.post("/api/mistakes-bank/add", async (req, res) => {
+  app.post("/api/mistakes-bank/add", requireAuth, async (req, res) => {
     try {
       const { userId, question } = req.body;
       if (!userId || !question) return res.status(400).json({ error: "userId and question required" });
@@ -698,7 +764,7 @@ async function startServer() {
   });
 
   // 5d. Get Mistakes Bank
-  app.get("/api/mistakes-bank", async (req, res) => {
+  app.get("/api/mistakes-bank", requireAuth, async (req, res) => {
     try {
       const { userId } = req.query as Record<string, string>;
       if (!userId) return res.status(400).json({ error: "userId required" });
