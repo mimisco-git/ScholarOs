@@ -285,6 +285,37 @@ async function batchWriteQuestions(questions: ScholarQuestion[]): Promise<number
   return written;
 }
 
+// ---- AI Explanation Generator ----
+// Called when ALOC returns no solution for a question.
+// Uses Gemini to generate a clear, WAEC/JAMB-style explanation.
+async function generateExplanation(question: ALOCQuestion, subject: string, correctAnswer: string): Promise<string> {
+  const apiKey = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+  if (!apiKey) return `The correct answer is ${correctAnswer}.`;
+
+  try {
+    const prompt = `You are a Nigerian exam tutor. For this ${subject} question:
+
+Question: ${question.question}
+Options: A) ${question.option?.a}  B) ${question.option?.b}  C) ${question.option?.c}  D) ${question.option?.d}
+Correct Answer: ${correctAnswer.toUpperCase()}
+
+Write a SHORT (2-3 sentence) clear explanation of why ${correctAnswer.toUpperCase()} is correct. 
+Use LaTeX for any math: $formula$. Be direct and educational. Nigerian WAEC/JAMB syllabus context.`;
+
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    });
+
+    if (!res.ok) return `The correct answer is ${correctAnswer}.`;
+    const data = await res.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || `The correct answer is ${correctAnswer}.`;
+  } catch {
+    return `The correct answer is ${correctAnswer}.`;
+  }
+}
+
 // ---- Core Fetcher ----
 // Fetches all questions for one exam + subject + year combination
 async function fetchSubjectYear(
@@ -312,7 +343,16 @@ async function fetchSubjectYear(
 
     for (const raw of rawQuestions) {
       if (raw.question && raw.option && raw.answer) {
-        questions.push(transformQuestion(raw, subjectName, examType, year));
+        let q = transformQuestion(raw, subjectName, examType, year);
+        
+        // If ALOC provided no explanation, generate one with AI
+        // Only do this for ~20% of questions to avoid rate limits and cost
+        if (!raw.solution && Math.random() < 0.2) {
+          await sleep(200); // Small delay to avoid API hammering
+          q.explanation = await generateExplanation(raw, subjectName, raw.answer);
+        }
+        
+        questions.push(q);
       }
     }
 

@@ -72,7 +72,7 @@ axios.interceptors.response.use(
 );
 
 // --- Types ---
-type OSPhase = 'BOOT' | 'LOCK' | 'REGISTRATION' | 'DESKTOP';
+type OSPhase = 'LANDING' | 'BOOT' | 'LOCK' | 'REGISTRATION' | 'DESKTOP';
 type ExamMode = 'STUDY' | 'EXAM';
 
 interface UserData {
@@ -676,7 +676,7 @@ const LeaderboardWindow = () => {
       </div>
       <div className="flex-1 overflow-y-auto no-scrollbar p-4">
         {loading ? (
-          <div className="flex items-center justify-center h-full text-white/20 uppercase font-black tracking-widest">Synchronizing...</div>
+          <SkeletonList rows={6} />
         ) : (
           <div className="flex flex-col gap-2">
             {data.map((entry, i) => (
@@ -1496,7 +1496,7 @@ const MistakesBankWindow = ({ user, onStartReview }: { user: UserData | null, on
 
       <div className="flex-1 overflow-y-auto no-scrollbar p-4">
         {loading ? (
-          <div className="flex items-center justify-center h-32 text-white/20 text-xs uppercase font-black tracking-widest animate-pulse">Loading Bank...</div>
+          <SkeletonList rows={4} />
         ) : mistakes.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-8">
             <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center"><BookOpen size={32} className="text-white/20" /></div>
@@ -1567,7 +1567,7 @@ const AdminDashboard = ({ user }: { user: UserData | null }) => {
       </div>
 
       {loading ? (
-        <div className="text-white/20 text-xs uppercase font-black tracking-widest animate-pulse">Fetching system metrics...</div>
+        <SkeletonStats />
       ) : (
         <div className="grid grid-cols-3 gap-4">
           {statCards.map((card, i) => (
@@ -1663,6 +1663,281 @@ const WhatsAppShare = ({ username, score, total, examName }: { username: string,
       </svg>
       Share on WhatsApp
     </button>
+  );
+};
+
+// ============================================================
+// COMPONENT: Skeleton Loading System
+// ============================================================
+const Skeleton = ({ w = '100%', h = 16, rounded = 8, className = '' }: { w?: string | number; h?: number; rounded?: number; className?: string }) => (
+  <div
+    className={`animate-pulse ${className}`}
+    style={{
+      width: w, height: h, borderRadius: rounded,
+      background: 'linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 100%)',
+      backgroundSize: '200% 100%',
+      animation: 'shimmer 1.5s infinite',
+    }}
+  />
+);
+
+const SkeletonCard = () => (
+  <div className="rounded-2xl p-5 flex flex-col gap-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+    <Skeleton h={12} w="60%" />
+    <Skeleton h={8} w="90%" />
+    <Skeleton h={8} w="75%" />
+  </div>
+);
+
+const SkeletonList = ({ rows = 4 }: { rows?: number }) => (
+  <div className="flex flex-col gap-3 p-4">
+    {Array.from({ length: rows }).map((_, i) => (
+      <div key={i} className="rounded-xl p-4 flex items-center gap-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+        <Skeleton w={40} h={40} rounded={12} />
+        <div className="flex-1 flex flex-col gap-2">
+          <Skeleton h={10} w="50%" />
+          <Skeleton h={8} w="35%" />
+        </div>
+        <Skeleton w={60} h={24} rounded={8} />
+      </div>
+    ))}
+  </div>
+);
+
+const SkeletonStats = () => (
+  <div className="grid grid-cols-3 gap-4 p-6">
+    {[1,2,3].map(i => (
+      <div key={i} className="rounded-2xl p-5 flex flex-col gap-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+        <Skeleton h={8} w="50%" />
+        <Skeleton h={28} w="70%" />
+        <Skeleton h={8} w="40%" />
+      </div>
+    ))}
+  </div>
+);
+
+// ============================================================
+// COMPONENT: Marketing Landing Page
+// The first thing a new user sees at the root URL
+// ============================================================
+const EXAM_BADGES = ['JAMB UTME', 'WAEC', 'NECO', 'ICAN', 'Bar Exams', 'PTDF', 'Post-UTME', 'TRCN', 'NABTEB', 'MDCN'];
+const STATS = [
+  { value: '500K+', label: 'Past Questions' },
+  { value: '70+', label: 'Years of Archives' },
+  { value: '20+', label: 'Exam Categories' },
+  { value: '100%', label: 'AI-Powered' },
+];
+const FEATURES = [
+  { icon: <Brain size={20} />, title: 'Cerebro AI Tutor', desc: 'Step-by-step LaTeX math solutions, wrong-answer analysis, and personalized study recommendations after every session.' },
+  { icon: <Monitor size={20} />, title: 'Exact CBT Simulation', desc: 'Timed exam mode that mirrors the real JAMB, WAEC, and ICAN interfaces down to the question navigator grid.' },
+  { icon: <TrendingUp size={20} />, title: 'Weakness Detection', desc: 'Cerebro tracks every topic you attempt and builds a custom "Scholar-Print" exam targeting your specific gaps.' },
+  { icon: <Award size={20} />, title: 'Predicted Score', desc: 'After enough practice, the system predicts your likely score out of 400 for JAMB or grade for WAEC.' },
+  { icon: <Flame size={20} />, title: 'Gamified Learning', desc: 'XP, daily streaks, badges, and a global leaderboard turn exam prep into a competitive daily habit.' },
+  { icon: <Lock size={20} />, title: 'Secure & Private', desc: 'Your results are PIN-gated. Study on a shared computer and no one else can view your performance data.' },
+];
+
+const LandingPage = ({ onEnter }: { onEnter: () => void }) => {
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    setMousePos({ x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight });
+  };
+
+  return (
+    <div
+      className="min-h-screen overflow-y-auto overflow-x-hidden"
+      style={{ background: 'var(--s-void)', fontFamily: 'var(--font-sans)' }}
+      onMouseMove={handleMouseMove}
+    >
+      {/* Dynamic background orb follows cursor */}
+      <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }}>
+        <div style={{
+          position: 'absolute',
+          width: 600, height: 600,
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(13,126,58,0.12) 0%, transparent 70%)',
+          left: `${mousePos.x * 100}%`,
+          top: `${mousePos.y * 100}%`,
+          transform: 'translate(-50%, -50%)',
+          transition: 'left 1.2s ease, top 1.2s ease',
+        }} />
+        <svg className="absolute inset-0 w-full h-full" style={{ opacity: 0.4 }}>
+          <defs>
+            <pattern id="lp-grid" width="48" height="48" patternUnits="userSpaceOnUse">
+              <path d="M 48 0 L 0 0 0 48" fill="none" stroke="rgba(255,255,255,0.025)" strokeWidth="0.5" />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#lp-grid)" />
+          {[
+            { x: '8%', y: '15%', sym: 'π', sz: 80, op: 0.05 },
+            { x: '88%', y: '10%', sym: 'Σ', sz: 60, op: 0.04 },
+            { x: '92%', y: '60%', sym: '∫', sz: 100, op: 0.04 },
+            { x: '5%', y: '75%', sym: '∇', sz: 64, op: 0.04 },
+            { x: '50%', y: '90%', sym: 'α', sz: 52, op: 0.05 },
+          ].map((s, i) => (
+            <text key={i} x={s.x} y={s.y} fontSize={s.sz}
+              fill={`rgba(201,160,80,${s.op})`} fontFamily="Georgia,serif" fontWeight="bold">{s.sym}</text>
+          ))}
+        </svg>
+      </div>
+
+      <div className="relative z-10 max-w-5xl mx-auto px-6">
+
+        {/* Nav */}
+        <nav className="flex items-center justify-between py-6">
+          <div className="flex items-center gap-3">
+            <GraduationCap size={28} style={{ color: 'var(--s-gold)' }} />
+            <span className="text-white text-lg scholar-heading">ScholarOS</span>
+          </div>
+          <button onClick={onEnter}
+            className="px-5 py-2 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all"
+            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+            Sign In
+          </button>
+        </nav>
+
+        {/* Hero */}
+        <section className="pt-20 pb-24 text-center">
+          <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }}>
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-8 text-[10px] font-black uppercase tracking-widest"
+              style={{ background: 'rgba(13,126,58,0.15)', border: '1px solid rgba(13,126,58,0.3)', color: 'var(--s-green-lt)' }}>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Nigeria's First Academic Operating System
+            </div>
+
+            <h1 className="text-6xl scholar-heading text-white mb-6 leading-none" style={{ letterSpacing: '-0.03em' }}>
+              The Intelligence<br />
+              <span style={{
+                background: 'linear-gradient(135deg, var(--s-gold) 0%, var(--s-gold-lt) 50%, var(--s-gold) 100%)',
+                WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'
+              }}>of Achievement</span>
+            </h1>
+
+            <p className="text-white/50 text-lg max-w-xl mx-auto leading-relaxed mb-10">
+              A complete exam preparation system for every Nigerian qualification — from WAEC and JAMB to ICAN and the Bar. 500,000+ past questions. Real CBT simulation. AI explanations for every answer.
+            </p>
+
+            <div className="flex items-center justify-center gap-4 flex-wrap">
+              <motion.button
+                whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                onClick={onEnter}
+                className="px-8 py-4 text-white font-black uppercase tracking-widest rounded-2xl text-sm"
+                style={{ background: 'linear-gradient(135deg, var(--s-green) 0%, #0D7E3A 100%)', boxShadow: '0 8px 40px rgba(13,126,58,0.4)' }}>
+                Enter ScholarOS — Free Preview
+              </motion.button>
+              <button className="px-8 py-4 text-white/60 font-black uppercase tracking-widest rounded-2xl text-sm"
+                style={{ border: '1px solid rgba(255,255,255,0.1)' }}
+                onClick={() => document.getElementById('pricing-section')?.scrollIntoView({ behavior: 'smooth' })}>
+                View Pricing
+              </button>
+            </div>
+          </motion.div>
+        </section>
+
+        {/* Exam badges */}
+        <section className="pb-20">
+          <p className="text-center text-white/20 text-[10px] font-black uppercase tracking-widest mb-6">Covers every major Nigerian exam</p>
+          <div className="flex flex-wrap justify-center gap-3">
+            {EXAM_BADGES.map((badge, i) => (
+              <motion.div key={i}
+                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
+                className="px-4 py-2 rounded-xl text-xs font-bold"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' }}>
+                {badge}
+              </motion.div>
+            ))}
+          </div>
+        </section>
+
+        {/* Stats */}
+        <section className="pb-24 grid grid-cols-4 gap-4">
+          {STATS.map((s, i) => (
+            <div key={i} className="rounded-2xl p-6 text-center"
+              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="text-3xl font-black scholar-heading mb-1" style={{ color: 'var(--s-gold)' }}>{s.value}</div>
+              <div className="text-white/30 text-[10px] font-bold uppercase tracking-widest">{s.label}</div>
+            </div>
+          ))}
+        </section>
+
+        {/* Features */}
+        <section className="pb-24">
+          <h2 className="text-3xl scholar-heading text-white text-center mb-12">Built for Nigerian students</h2>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+            {FEATURES.map((f, i) => (
+              <div key={i} className="rounded-2xl p-6 flex flex-col gap-3"
+                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+                  style={{ background: 'rgba(13,126,58,0.15)', border: '1px solid rgba(13,126,58,0.25)', color: 'var(--s-green-lt)' }}>
+                  {f.icon}
+                </div>
+                <div>
+                  <div className="text-white text-sm font-bold mb-1">{f.title}</div>
+                  <div className="text-white/40 text-xs leading-relaxed">{f.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Pricing */}
+        <section id="pricing-section" className="pb-24">
+          <h2 className="text-3xl scholar-heading text-white text-center mb-4">Simple pricing</h2>
+          <p className="text-white/30 text-center text-sm mb-12">Start free. Upgrade when you are ready.</p>
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { name: 'Free Preview', price: '₦0', period: 'always', color: 'rgba(255,255,255,0.06)', features: ['5 questions per subject', 'AI explanations (limited)', 'See your weak topics'], cta: 'Get Started Free', onClick: onEnter },
+              { name: 'Pro Bundle', price: '₦6,500', period: 'all exams', color: 'rgba(201,160,80,0.12)', border: 'rgba(201,160,80,0.35)', features: ['All 20+ exam categories', 'Full JAMB simulation', 'Unlimited AI tutor', 'Study schedule + analytics', 'Mistakes Bank & Scholar-Print'], cta: 'Get Pro Access', popular: true, onClick: onEnter },
+              { name: 'Monthly', price: '₦1,800', period: 'per month', color: 'rgba(29,78,216,0.1)', features: ['Everything in Pro', 'New questions as added', 'Cancel anytime'], cta: 'Start Monthly', onClick: onEnter },
+            ].map((plan, i) => (
+              <div key={i} className="rounded-2xl p-6 flex flex-col gap-4 relative"
+                style={{ background: plan.color, border: `1px solid ${(plan as any).border || 'rgba(255,255,255,0.08)'}` }}>
+                {(plan as any).popular && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest"
+                    style={{ background: 'var(--s-gold)', color: 'var(--s-void)' }}>
+                    Most Popular
+                  </div>
+                )}
+                <div>
+                  <div className="text-white/60 text-[10px] font-black uppercase tracking-widest mb-1">{plan.name}</div>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-3xl font-black text-white scholar-mono">{plan.price}</span>
+                    <span className="text-white/30 text-[10px]">/{plan.period}</span>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2 flex-1">
+                  {plan.features.map((f, j) => (
+                    <div key={j} className="flex items-center gap-2 text-[11px] text-white/50">
+                      <Check size={11} style={{ color: 'var(--s-gold)', flexShrink: 0 }} />
+                      {f}
+                    </div>
+                  ))}
+                </div>
+                <button onClick={plan.onClick}
+                  className="w-full py-3 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all"
+                  style={{ background: (plan as any).popular ? 'var(--s-green)' : 'rgba(255,255,255,0.08)', boxShadow: (plan as any).popular ? '0 4px 20px rgba(13,126,58,0.3)' : 'none' }}>
+                  {plan.cta}
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer className="pb-12 flex items-center justify-between border-t pt-8" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+          <div className="flex items-center gap-2">
+            <GraduationCap size={18} style={{ color: 'var(--s-gold)' }} />
+            <span className="text-white/40 text-xs scholar-heading">ScholarOS</span>
+          </div>
+          <div className="flex gap-6">
+            {['Privacy Policy', 'Terms of Service', 'Support'].map(link => (
+              <a key={link} href="#" className="text-white/20 text-[10px] hover:text-white/50 transition-colors uppercase tracking-widest">{link}</a>
+            ))}
+          </div>
+          <div className="text-white/20 text-[10px]">© 2026 ScholarOS Nigeria</div>
+        </footer>
+      </div>
+    </div>
   );
 };
 
@@ -2303,7 +2578,7 @@ const ExamContent = ({ examName, user, mode, setUser, questions = SAMPLE_JAMB_QU
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
 
-  const currentQuestion = questions[currentQuestionIndex] || SAMPLE_JAMB_QUESTIONS[0];
+  const currentQuestion = questions[currentQuestionIndex] || questions[0];
   const activeSubject = currentQuestion.subject;
 
   useEffect(() => {
@@ -2741,7 +3016,7 @@ Student asked: ${textToSend}`,
               </div>
 
               <button 
-                disabled={currentQuestionIndex === SAMPLE_JAMB_QUESTIONS.length - 1}
+                disabled={currentQuestionIndex === questions.length - 1}
                 onClick={() => setCurrentQuestionIndex(prev => prev + 1)}
                 className="flex items-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-20 rounded-xl text-white text-xs font-bold transition-all shadow-lg shadow-emerald-500/20"
               >
@@ -3046,8 +3321,8 @@ const FolderContent = ({ category, onOpenExam }: { category: CategoryFolder, onO
         </div>
         <div className="flex-1 p-6 overflow-y-auto">
           {yearsLoading ? (
-            <div className="flex items-center justify-center h-32 text-white/20 text-xs uppercase font-black tracking-widest animate-pulse">
-              Loading Archive...
+            <div className="grid grid-cols-4 gap-3">
+              {Array.from({length:8}).map((_,i) => <Skeleton key={i} h={68} rounded={12} />)}
             </div>
           ) : (
             <div className="grid grid-cols-4 gap-3">
@@ -3079,7 +3354,35 @@ const FolderContent = ({ category, onOpenExam }: { category: CategoryFolder, onO
   }
 
   return (
-    <div className="p-8 flex flex-col h-full bg-[#0a1428]/50 overflow-y-auto no-scrollbar">
+    <div className="p-8 flex flex-col h-full overflow-y-auto no-scrollbar" style={{background:'rgba(10,20,40,0.5)'}}>
+
+      {/* Full JAMB Simulation — only shown in University Entry folder */}
+      {category.id === 'university' && (
+        <div
+          className="rounded-3xl p-7 mb-6 flex items-center justify-between cursor-pointer relative overflow-hidden transition-all group"
+          style={{background:'rgba(29,78,216,0.1)', border:'1px solid rgba(29,78,216,0.3)'}}
+          onClick={() => onOpenExam('Full JAMB Simulation — 4 Subjects', 'jamb', '__full__', new Date().getFullYear())}
+        >
+          <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:scale-110 transition-transform">
+            <GraduationCap size={100} />
+          </div>
+          <div className="flex items-center gap-5 relative z-10">
+            <div className="p-4 rounded-2xl group-hover:scale-105 transition-transform"
+              style={{background:'var(--s-royal)', boxShadow:'0 0 40px rgba(29,78,216,0.3)'}}>
+              <Monitor size={28} className="text-white" />
+            </div>
+            <div>
+              <div className="flex items-center gap-3 mb-1">
+                <h3 className="text-white font-black uppercase tracking-tight text-xl scholar-heading">Full JAMB Simulation</h3>
+                <span className="px-2 py-0.5 text-[8px] font-black rounded uppercase text-white" style={{background:'var(--s-royal)'}}>EXACT FORMAT</span>
+              </div>
+              <p className="text-white/50 text-xs max-w-md">5 subjects · 100 questions · 120 minutes. Mirrors the real JAMB CBT interface exactly as it appears on exam day.</p>
+            </div>
+          </div>
+          <ChevronRight size={24} className="text-blue-400/60 group-hover:translate-x-1 transition-transform relative z-10" />
+        </div>
+      )}
+
       <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-3xl p-8 mb-10 flex items-center justify-between group hover:bg-emerald-500/20 transition-all cursor-pointer relative overflow-hidden"
         onClick={() => onOpenExam(`${category.label} - Scholar-Print AI Mock`)}
       >
@@ -3264,7 +3567,7 @@ const Taskbar = ({ onOpenSettings, openWindows, onToggleWindow, user }: {
 };
 
 export default function App() {
-  const [phase, setPhase] = useState<OSPhase>('BOOT');
+  const [phase, setPhase] = useState<OSPhase>('LANDING');
   const [user, setUser] = useState<UserData | null>(null);
   const [showPricing, setShowPricing] = useState(false);
   
@@ -3300,18 +3603,7 @@ export default function App() {
   const isFreeTier = user ? user.purchased_modules.length === 0 : false;
   const hitFreeLimit = isFreeTier && freeQuestionsUsed >= FREE_QUESTIONS_PER_SESSION;
 
-  const getScholarPrintQuestions = (userData: UserData | null) => {
-    if (!userData || !userData.topicPerformance || Object.keys(userData.topicPerformance).length === 0) {
-      return [...SAMPLE_JAMB_QUESTIONS].sort(() => Math.random() - 0.5);
-    }
-    const rankedTopics = Object.entries(userData.topicPerformance)
-      .sort(([, a], [, b]) => (a.correct / a.total) - (b.correct / b.total))
-      .map(([topic]) => topic);
-    const weakestTopic = rankedTopics[0];
-    const prioritized = SAMPLE_JAMB_QUESTIONS.filter(q => q.topic === weakestTopic);
-    const others = SAMPLE_JAMB_QUESTIONS.filter(q => q.topic !== weakestTopic);
-    return [...prioritized, ...others];
-  };
+
 
   const [questionsLoading, setQuestionsLoading] = useState(false);
   const [questionsError, setQuestionsError] = useState("");
@@ -3348,15 +3640,38 @@ export default function App() {
         setQuestionsLoading(false);
       }
     } else if (exam && subject && year) {
+      // Free tier: only allow preview questions
+      if (isFreeTier && freeQuestionsUsed >= FREE_QUESTIONS_PER_SESSION) {
+        setShowPremiumModal(name);
+        return;
+      }
+
       // Fetch specific exam/subject/year questions from backend
       setQuestionsLoading(true);
       try {
-        const res = await axios.get('/api/questions', {
-          params: { exam, subject, year }
-        });
+        let allQuestions: Question[] = [];
 
-        if (res.data.questions?.length > 0) {
-          setActiveExamQuestions(res.data.questions);
+        if (subject === '__full__') {
+          // Full JAMB simulation: fetch Use of English + 3 science subjects simultaneously
+          const jambSubjects = ['Use of English', 'Mathematics', 'Physics', 'Biology', 'Chemistry'];
+          const recentYear = new Date().getFullYear() - 1;
+          const fetches = jambSubjects.map(sub =>
+            axios.get('/api/questions', { params: { exam: 'jamb', subject: sub, year: recentYear } })
+              .then(r => (r.data.questions || []).slice(0, 20).map((q: Question, i: number) => ({ ...q, subject: sub })))
+              .catch(() => [] as Question[])
+          );
+          const results = await Promise.all(fetches);
+          allQuestions = results.flat().map((q, i) => ({ ...q, id: i + 1 }));
+        } else {
+          const res = await axios.get('/api/questions', { params: { exam, subject, year } });
+          allQuestions = res.data.questions || [];
+        }
+
+        if (allQuestions.length > 0) {
+          // Free tier: slice to preview limit
+          const qs = isFreeTier ? allQuestions.slice(0, FREE_QUESTIONS_PER_SESSION) : allQuestions;
+          setActiveExamQuestions(qs);
+          if (isFreeTier) setFreeQuestionsUsed(prev => prev + qs.length);
           setShowModeModal(name);
         } else {
           // No questions seeded yet for this year - show sample with a notice
@@ -3413,6 +3728,12 @@ export default function App() {
   return (
     <div className="relative w-full h-screen overflow-hidden" style={{background:"var(--s-navy)",fontFamily:"var(--font-sans)"}}>
       <AnimatePresence mode="wait">
+        {phase === 'LANDING' && (
+          <motion.div key="landing" exit={{ opacity: 0, scale: 0.98 }} transition={{ duration: 0.5 }}>
+            <LandingPage onEnter={() => setPhase('BOOT')} />
+          </motion.div>
+        )}
+
         {phase === 'BOOT' && (
           <motion.div key="boot" exit={{ opacity: 0 }}>
             <BootScreen onComplete={() => setPhase('LOCK')} />

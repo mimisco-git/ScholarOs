@@ -216,3 +216,9 @@ html, body, #root {
     print-color-adjust: exact;
   }
 }
+
+/* Skeleton shimmer animation */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
