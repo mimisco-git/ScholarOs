@@ -191,52 +191,63 @@ interface CategoryFolder {
   items: ExamEntry[];
 }
 
+// Subject colour helper
+const SUBJECT_COLORS: Record<string, string> = {
+  'Mathematics': 'sub-math', 'Further Mathematics': 'sub-math',
+  'English': 'sub-english', 'Use of English': 'sub-english', 'Literature': 'sub-english',
+  'Physics': 'sub-physics',
+  'Chemistry': 'sub-chem',
+  'Biology': 'sub-bio', 'Agricultural Science': 'sub-bio',
+  'Economics': 'sub-econ', 'Commerce': 'sub-econ', 'Accounting': 'sub-econ',
+  'Government': 'sub-govt', 'Civic Education': 'sub-govt',
+};
+const getSubjectColor = (sub: string) => SUBJECT_COLORS[sub] || 'sub-default';
+
 const EDUCATIONAL_CATEGORIES: CategoryFolder[] = [
   {
     id: 'foundation',
     label: 'Foundation Hub',
-    color: 'bg-emerald-400',
+    color: 'bg-[#0D7E3A]',
     items: [
-      { id: 'waec', name: 'WAEC WASSCE', description: 'O-Level Certificate', icon: <Monitor />, startYear: 1952, subjects: ['Mathematics', 'English', 'Physics', 'Chemistry', 'Biology', 'Economics'] },
-      { id: 'neco', name: 'NECO SSCE', description: 'National School Certificate', icon: <BookOpen />, startYear: 2000, subjects: ['Mathematics', 'English', 'Civic Education', 'Commerce'] },
-      { id: 'bece', name: 'BECE (Junior WAEC)', description: 'Junior Secondary Exit', icon: <Award />, startYear: 1980, subjects: ['Basic Science', 'Basic Tech', 'Mathematics'] },
-      { id: 'ncee', name: 'Common Entrance', description: 'Federal Unity Entry', icon: <BookOpen />, startYear: 1970, subjects: ['Quantitative', 'Verbal', 'General Science'] },
-      { id: 'nbais', name: 'NBAIS SAISSCE', description: 'Arabic & Islamic Studies', icon: <BookOpen />, startYear: 1960, subjects: ['Arabic', 'Islamic Studies', 'English'] },
-      { id: 'nabteb', name: 'NABTEB', description: 'Technical & Craft Trades', icon: <Settings />, startYear: 1992, subjects: ['Engineering', 'Building', 'Business'] },
+      { id: 'waec', name: 'WAEC WASSCE', description: 'O-Level Certificate', icon: <BookOpen />, startYear: 1952, subjects: ['Mathematics', 'English', 'Physics', 'Chemistry', 'Biology', 'Economics', 'Government', 'Literature', 'Agricultural Science'] },
+      { id: 'neco', name: 'NECO SSCE', description: 'National School Certificate', icon: <BookOpen />, startYear: 2000, subjects: ['Mathematics', 'English', 'Civic Education', 'Commerce', 'Biology', 'Physics', 'Chemistry'] },
+      { id: 'bece', name: 'BECE (Junior WAEC)', description: 'Junior Secondary Exit', icon: <Award />, startYear: 1980, subjects: ['Mathematics', 'English', 'Biology', 'Physics'] },
+      { id: 'ncee', name: 'Common Entrance', description: 'Federal Unity Entry', icon: <GraduationCap />, startYear: 1970, subjects: ['Mathematics', 'English', 'Biology'] },
+      { id: 'nabteb', name: 'NABTEB', description: 'Technical & Craft Trades', icon: <Settings />, startYear: 1992, subjects: ['Mathematics', 'English', 'Physics'] },
     ]
   },
   {
     id: 'university',
     label: 'University Entry',
-    color: 'bg-blue-400',
+    color: 'bg-[#1D4ED8]',
     items: [
-      { id: 'jamb', name: 'JAMB UTME', description: 'Unified Matriculation Exam', icon: <Sparkles />, startYear: 1978, subjects: ['Use of English', 'Mathematics', 'Biology', 'Chemistry', 'Physics', 'Economics', 'Government'] },
-      { id: 'post-utme', name: 'Post-UTME Screen', description: 'Institutional Screening', icon: <Search />, startYear: 2005, subjects: ['General Paper', 'Current Affairs'] },
-      { id: 'jupeb', name: 'JUPEB / IJMB', description: 'Advanced Level A-Levels', icon: <Award />, startYear: 2013, subjects: ['Physics', 'Chemistry', 'Mathematics', 'Biology'] },
-      { id: 'de', name: 'Direct Entry', description: '200 Level Admission', icon: <ChevronRight />, startYear: 1978, subjects: ['Subject A', 'Subject B'] },
+      { id: 'jamb', name: 'JAMB UTME', description: 'Unified Matriculation Exam', icon: <GraduationCap />, startYear: 1978, subjects: ['Use of English', 'Mathematics', 'Biology', 'Chemistry', 'Physics', 'Economics', 'Government', 'Literature'] },
+      { id: 'post-utme', name: 'Post-UTME Screen', description: 'Institutional Screening', icon: <Search />, startYear: 2005, subjects: ['Mathematics', 'English', 'Biology', 'Physics', 'Chemistry', 'Economics'] },
+      { id: 'jupeb', name: 'JUPEB / IJMB', description: 'Advanced Level A-Levels', icon: <Award />, startYear: 2013, subjects: ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'Economics'] },
+      { id: 'de', name: 'Direct Entry', description: '200 Level Admission', icon: <ChevronRight />, startYear: 1978, subjects: ['Mathematics', 'English'] },
     ]
   },
   {
     id: 'professional',
     label: 'Professional',
-    color: 'bg-slate-400',
+    color: 'bg-[#C9A050]',
     items: [
       { id: 'ican', name: 'ICAN', description: 'Chartered Accountants', icon: <Calculator />, startYear: 1965, subjects: ['Financial Accounting', 'Taxation', 'Audit', 'Law'] },
       { id: 'law', name: 'Bar Exams', description: 'Nigerian Law School', icon: <Award />, startYear: 1962, subjects: ['Criminal Law', 'Civil Procedure', 'Land Law'] },
-      { id: 'trcn', name: 'Teachers TRCN', description: 'Professional Qualifying', icon: <BookOpen />, startYear: 2017, subjects: ['Pedagogy', 'Educational Psych', 'English'] },
-      { id: 'mdcn', name: 'MDCN Assessment', description: 'Medical Practitioners', icon: <User />, startYear: 1963, subjects: ['Medicine', 'Surgery', 'Paediatrics'] },
-      { id: 'nursing', name: 'NMC Nursing', description: 'Nursing & Midwifery', icon: <BookOpen />, startYear: 1970, subjects: ['Nursing Science', 'Midwifery'] },
+      { id: 'trcn', name: 'Teachers TRCN', description: 'Professional Qualifying', icon: <BookOpen />, startYear: 2017, subjects: ['Pedagogy', 'Mathematics', 'English'] },
+      { id: 'mdcn', name: 'MDCN Assessment', description: 'Medical Practitioners', icon: <User />, startYear: 1963, subjects: ['Biology', 'Chemistry', 'Physics'] },
+      { id: 'nursing', name: 'NMC Nursing', description: 'Nursing & Midwifery', icon: <BookOpen />, startYear: 1970, subjects: ['Biology', 'Chemistry'] },
     ]
   },
   {
     id: 'opportunity',
     label: 'Opportunity',
-    color: 'bg-gold-400',
+    color: 'bg-[#9B1C1C]',
     items: [
-      { id: 'scholarships', name: 'Undergrad Scholarships', description: 'Corporate Foundation Awards', icon: <Sparkles />, startYear: 2000, subjects: ['Logical Reasoning', 'Quantitative', 'Verbal'] },
-      { id: 'ptdf', name: 'PTDF / FSB Grants', description: 'Petroleum Tech Fund', icon: <Award />, startYear: 2000, subjects: ['General Paper', 'STEM Aptitude'] },
-      { id: 'aptitude', name: 'Job Aptitude Tests', description: 'Bank & Corporate Hiring', icon: <Search />, startYear: 1990, subjects: ['GMAT Style', 'Current Affairs'] },
-      { id: 'recruitment', name: 'FCSC / Military', description: 'Civil Service & Force', icon: <User />, startYear: 1960, subjects: ['Current Affairs', 'Verbal Analysis'] },
+      { id: 'scholarships', name: 'Undergrad Scholarships', description: 'Shell, MTN, Chevron Awards', icon: <Sparkles />, startYear: 2000, subjects: ['Mathematics', 'Physics', 'Chemistry', 'Economics'] },
+      { id: 'ptdf', name: 'PTDF / FSB Grants', description: 'Petroleum Technology Fund', icon: <Award />, startYear: 2000, subjects: ['Mathematics', 'Physics', 'Chemistry'] },
+      { id: 'aptitude', name: 'Job Aptitude Tests', description: 'Bank & Corporate Hiring', icon: <Search />, startYear: 1990, subjects: ['Mathematics', 'Economics'] },
+      { id: 'recruitment', name: 'FCSC / Military', description: 'Civil Service & Force', icon: <User />, startYear: 1960, subjects: ['Mathematics', 'English', 'Government'] },
     ]
   }
 ];
@@ -335,7 +346,7 @@ const PremiumAccessModal = ({ examId, onClose, onSuccess }: { examId: string, on
             <Award size={40} />
           </div>
           <div>
-            <h2 className="text-white text-xl font-black uppercase tracking-tight">Premium Access Required</h2>
+            <h2 className="text-white text-xl scholar-heading">Premium Access Required</h2>
             <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest mt-2">{category?.label} Module</p>
           </div>
           <p className="text-white/60 text-xs leading-relaxed">
@@ -378,7 +389,7 @@ const ModeSelectionModal = ({ examName, onSelect, onClose }: { examName: string,
     >
       <div className="flex flex-col items-center text-center gap-8">
         <div>
-          <h2 className="text-white text-xl font-black uppercase tracking-tight">Prepare for Success</h2>
+          <h2 className="text-white text-xl scholar-heading">Prepare for Success</h2>
           <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest mt-2">{examName} - Selective Access</p>
         </div>
         
@@ -525,10 +536,10 @@ const AnalyticsDashboard = ({ user }: { user: UserData | null }) => {
   const avgAccuracy = totalAttempted > 0 ? Math.round((totalCorrect / totalAttempted) * 100) : 0;
 
   return (
-    <div className="flex flex-col h-full bg-[#0a0f1d] overflow-y-auto no-scrollbar p-6 gap-8">
+    <div className="flex flex-col h-full overflow-y-auto no-scrollbar p-6 gap-8" style={{background:"var(--s-panel)"}}>
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-white text-xl font-black uppercase tracking-tight">Command Center</h2>
+          <h2 className="text-white text-xl scholar-heading">Command Center</h2>
           <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest mt-1">Predictive Performance Analytics</p>
         </div>
         <div className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center gap-3">
@@ -636,10 +647,10 @@ const LeaderboardWindow = () => {
   }, []);
 
   return (
-    <div className="flex flex-col h-full bg-[#0a0f1d] no-scrollbar p-0">
+    <div className="flex flex-col h-full no-scrollbar p-0" style={{background:"var(--s-panel)"}}>
       <div className="p-8 border-b border-white/5 flex items-center justify-between">
         <div>
-          <h2 className="text-white text-xl font-black uppercase tracking-tight">Global Ranks</h2>
+          <h2 className="text-white text-xl scholar-heading">Global Ranks</h2>
           <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest mt-1">O-Level Standardized Rankings</p>
         </div>
         <Award size={32} className="text-gold-400" />
@@ -914,10 +925,10 @@ const MistakesBankWindow = ({ user, onStartReview }: { user: UserData | null, on
   }, [user?.id]);
 
   return (
-    <div className="flex flex-col h-full bg-[#0a0f1d]">
+    <div className="flex flex-col h-full" style={{background:"var(--s-panel)"}}>
       <div className="p-6 border-b border-white/5 flex items-center justify-between">
         <div>
-          <h2 className="text-white text-xl font-black uppercase tracking-tight">Mistakes Bank</h2>
+          <h2 className="text-white text-xl scholar-heading">Mistakes Bank</h2>
           <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest mt-1">{mistakes.length} Saved Questions for Revision</p>
         </div>
         {mistakes.length > 0 && (
@@ -995,7 +1006,7 @@ const AdminDashboard = ({ user }: { user: UserData | null }) => {
       <div className="flex items-center gap-4">
         <div className="p-3 bg-red-500/20 rounded-2xl border border-red-500/30"><Layout size={24} className="text-red-400" /></div>
         <div>
-          <h2 className="text-white text-xl font-black uppercase tracking-tight">System Administration</h2>
+          <h2 className="text-white text-xl scholar-heading">System Administration</h2>
           <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest mt-1">Root Access - ScholarOS Backend</p>
         </div>
       </div>
@@ -1116,43 +1127,72 @@ const BootScreen = ({ onComplete }: { onComplete: () => void }) => {
   const [logs, setLogs] = useState<string[]>([]);
 
   useEffect(() => {
+    SoundEngine.play('boot');
     let current = 0;
     let timeoutId: number;
-    
     const interval = setInterval(() => {
       if (current < BOOT_MESSAGES.length) {
         setLogs(prev => [...prev, BOOT_MESSAGES[current]]);
         current++;
       } else {
         clearInterval(interval);
-        timeoutId = window.setTimeout(onComplete, 1000);
+        timeoutId = window.setTimeout(onComplete, 900);
       }
-    }, 400);
-
-    return () => {
-      clearInterval(interval);
-      if (timeoutId) clearTimeout(timeoutId);
-    };
+    }, 380);
+    return () => { clearInterval(interval); if (timeoutId) clearTimeout(timeoutId); };
   }, [onComplete]);
 
   return (
-    <div className="fixed inset-0 bg-black flex items-center justify-center font-mono p-8 z-[200]">
+    <div className="crt-lines fixed inset-0 bg-[#020608] flex flex-col items-start justify-center p-12 z-[200] overflow-hidden">
+      {/* Scanline gradient */}
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[rgba(0,255,65,0.01)] to-transparent pointer-events-none" />
+
+      {/* ScholarOS ASCII header */}
+      <div className="mb-8 scholar-mono text-[#00FF41] opacity-80 text-xs leading-tight select-none">
+        <div style={{textShadow:'0 0 8px rgba(0,255,65,0.5)'}}>
+          {[
+            ' ___  ___ _  _  ___  _      _   ___   ___  ___',
+            '/ __|| __|| || |/ _ \| |    /_\ | _ \ / _ \/ __|',
+            '\__ \| _| | __ | (_) | |__ / _ \|   /| (_) \__ \',
+            '|___/|___||_||_|\___/|____/_/ \_\_|_\ \___/|___/',
+          ].map((line, i) => (
+            <motion.div key={i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.05 }}>
+              {line}
+            </motion.div>
+          ))}
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.25 }}
+            className="mt-1 text-[#C9A050]" style={{textShadow:'0 0 8px rgba(201,160,80,0.5)'}}>
+            {'  The Intelligence of Achievement — v5.0.4 :: Nigeria Academic OS'}
+          </motion.div>
+        </div>
+      </div>
+
+      <div className="w-64 h-[1px] bg-[#00FF41] opacity-20 mb-6" />
+
+      {/* Boot log */}
       <div className="w-full max-w-2xl">
         {logs.map((log, i) => (
-          <motion.div 
-            key={i}
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            className={`mb-1 text-sm ${log?.includes('OK') ? 'text-emerald-500' : 'text-emerald-400 font-bold'}`}
-          >
-            {log}
+          <motion.div key={i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
+            className="mb-[3px] scholar-mono text-[13px] flex items-center gap-3">
+            <span className={log?.includes('OK') ? 'text-[#00FF41]' : 'text-[#C9A050] font-bold'}>
+              {log?.includes('OK') ? '[ OK ]' : ''}
+            </span>
+            <span className={log?.includes('OK') ? 'text-[rgba(0,255,65,0.8)]' : 'text-[#C9A050]'}>
+              {log?.includes('OK') ? log.replace('[  OK  ] ', '') : log}
+            </span>
           </motion.div>
         ))}
-        <motion.div 
-          animate={{ opacity: [0, 1] }} 
-          transition={{ repeat: Infinity, duration: 0.8 }}
-          className="w-2 h-5 bg-emerald-500 inline-block mt-2"
-        />
+        <motion.div animate={{ opacity: [0, 1] }} transition={{ repeat: Infinity, duration: 0.7 }}
+          className="w-[10px] h-[16px] bg-[#00FF41] inline-block mt-2" style={{boxShadow:'0 0 8px rgba(0,255,65,0.6)'}} />
+      </div>
+
+      {/* Bottom flag strip */}
+      <div className="absolute bottom-0 left-0 right-0 h-[2px]">
+        <div className="flex h-full">
+          <div className="flex-1 bg-[#008751]" />
+          <div className="flex-1 bg-white" />
+          <div className="flex-1 bg-[#008751]" />
+        </div>
       </div>
     </div>
   );
@@ -1190,7 +1230,7 @@ const RegistrationScreen = ({
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-[160] overflow-hidden bg-slate-950">
+    <div className="fixed inset-0 flex items-center justify-center z-[160] overflow-hidden" style={{background:"var(--s-void)"}}>
       <div className="absolute inset-0">
         <div className="absolute top-[-10%] left-[-5%] w-[60%] h-[60%] bg-blue-600/10 blur-[150px] rounded-full" />
         <div className="absolute bottom-[-5%] right-[-5%] w-[40%] h-[40%] bg-emerald-600/10 blur-[150px] rounded-full" />
@@ -1331,10 +1371,28 @@ const LockScreen = ({
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-[150] overflow-hidden bg-slate-950">
-      <div className="absolute inset-0">
-        <div className="absolute top-[-10%] left-[-5%] w-[60%] h-[60%] bg-emerald-600/10 blur-[150px] rounded-full" />
-        <div className="absolute bottom-[-5%] right-[-5%] w-[40%] h-[40%] bg-blue-600/10 blur-[150px] rounded-full" />
+    <div className="fixed inset-0 flex items-center justify-center z-[150] overflow-hidden"
+      style={{background:'var(--s-void)'}}>
+      {/* Academic wallpaper (same as desktop) */}
+      <svg className="absolute inset-0 w-full h-full pointer-events-none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <pattern id="lock-grid" width="48" height="48" patternUnits="userSpaceOnUse">
+            <path d="M 48 0 L 0 0 0 48" fill="none" stroke="rgba(255,255,255,0.025)" strokeWidth="0.5"/>
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#lock-grid)" />
+        {[
+          {x:'5%',y:'15%',sym:'π',sz:64,op:0.04},{x:'88%',y:'10%',sym:'Σ',sz:52,op:0.03},
+          {x:'3%',y:'75%',sym:'∫',sz:80,op:0.03},{x:'90%',y:'70%',sym:'∇',sz:56,op:0.03},
+          {x:'45%',y:'90%',sym:'α',sz:44,op:0.04},
+        ].map((s,i)=>(
+          <text key={i} x={s.x} y={s.y} fontSize={s.sz} fill={`rgba(201,160,80,${s.op})`} fontFamily="Georgia,serif" fontWeight="bold">{s.sym}</text>
+        ))}
+      </svg>
+      <div className="absolute inset-0"
+        style={{background:'radial-gradient(ellipse at 50% 50%, rgba(13,126,58,0.06) 0%, transparent 60%)'}}/> 
+      <div className="absolute bottom-0 left-0 right-0 h-[2px] flex">
+        <div className="flex-1 bg-[#008751]"/><div className="flex-1 bg-white"/><div className="flex-1 bg-[#008751]"/>
       </div>
 
       <motion.div 
@@ -1342,20 +1400,26 @@ const LockScreen = ({
         animate={{ opacity: 1, scale: 1 }}
         className="relative z-10 flex flex-col items-center gap-8 w-full max-w-sm"
       >
-        <div className="relative group">
-          <div className="w-32 h-32 rounded-full border-2 border-white/20 p-1 bg-white/5 backdrop-blur-xl group-hover:border-emerald-500/50 transition-colors">
-            <div className="w-full h-full rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
-               <User size={64} className="text-white/20" />
-            </div>
+        {/* ScholarOS Academic Seal */}
+        <div className="relative">
+          <div className="w-32 h-32 rounded-full flex items-center justify-center relative"
+            style={{
+              background:'radial-gradient(ellipse, rgba(201,160,80,0.12) 0%, rgba(13,126,58,0.08) 100%)',
+              border:'2px solid rgba(201,160,80,0.25)',
+              boxShadow:'0 0 40px rgba(201,160,80,0.12), inset 0 1px 0 rgba(255,255,255,0.08)'
+            }}>
+            <GraduationCap size={56} style={{color:'var(--s-gold)',filter:'drop-shadow(0 0 16px rgba(201,160,80,0.4))'}} />
           </div>
-          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 bg-emerald-500 rounded-full text-[10px] font-black text-white uppercase tracking-widest shadow-lg shadow-emerald-500/20">
+          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest"
+            style={{background:'var(--s-green)',color:'white',boxShadow:'0 4px 16px rgba(13,126,58,0.4)'}}>
             Secure Access
           </div>
         </div>
 
         <div className="flex flex-col items-center gap-2 text-center px-4">
-          <h1 className="text-white text-2xl font-black uppercase tracking-tight">System Login</h1>
-          <p className="text-white/40 text-sm font-medium">Please authorize your study session</p>
+          <h1 className="text-white text-3xl scholar-heading" style={{letterSpacing:'-0.02em'}}>ScholarOS</h1>
+          <p className="text-[10px] font-bold uppercase tracking-[0.3em]" style={{color:'var(--s-gold)'}}>The Intelligence of Achievement</p>
+          <p className="text-white/30 text-xs mt-1">Authorize your study session</p>
         </div>
 
         <div className="flex flex-col gap-4 w-full px-8">
@@ -1386,10 +1450,14 @@ const LockScreen = ({
             </div>
           )}
 
-          <button 
+          <button
             onClick={handleLogin}
             disabled={loading}
-            className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl font-black uppercase tracking-[0.2em] transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 disabled:opacity-50 relative overflow-hidden"
+            className="w-full py-4 text-white rounded-xl font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 disabled:opacity-50 relative overflow-hidden"
+            style={{
+              background:'linear-gradient(135deg, var(--s-green) 0%, #0D7E3A 100%)',
+              boxShadow:'0 8px 32px rgba(13,126,58,0.35)'
+            }}
           >
             {loading ? (
               <SystemActionLoader label="Authorizing..." />
@@ -1446,10 +1514,19 @@ const LockScreen = ({
 };
 
 const GlassIcon = ({ icon, color }: { icon: React.ReactNode, color: string }) => (
-  <div className={`relative group w-16 h-16 flex items-center justify-center rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 shadow-xl transition-all duration-300 hover:scale-110 hover:bg-white/20 cursor-pointer`}>
-    <div className={`absolute inset-0 blur-xl opacity-20 group-hover:opacity-40 transition-opacity rounded-2xl ${color}`} />
-    <div className="relative z-10 text-white shadow-sm">
-      {React.cloneElement(icon as React.ReactElement<any>, { size: 32 })}
+  <div className="relative group w-16 h-16 flex items-center justify-center rounded-2xl cursor-pointer transition-all duration-300 hover:scale-[1.12]"
+    style={{
+      background:'rgba(255,255,255,0.04)',
+      backdropFilter:'blur(20px)',
+      border:'1px solid rgba(255,255,255,0.08)',
+      boxShadow:'0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)'
+    }}>
+    {/* Coloured glow behind icon */}
+    <div className={`absolute inset-0 rounded-2xl blur-lg opacity-30 group-hover:opacity-60 transition-opacity ${color}`} />
+    {/* Top edge highlight */}
+    <div className="absolute top-0 left-3 right-3 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent rounded-full" />
+    <div className="relative z-10 text-white drop-shadow-lg">
+      {React.cloneElement(icon as React.ReactElement<any>, { size: 28 })}
     </div>
   </div>
 );
@@ -1513,14 +1590,28 @@ const OSWindow = ({ id, title, isOpen, isMinimized, isMaximized, onClose, onMini
         borderRadius: 16
       }}
       exit={{ scale: 0.9, opacity: 0, y: 20 }}
-      className={`fixed bg-slate-900/60 backdrop-blur-3xl border border-white/10 shadow-2xl overflow-hidden flex flex-col z-50 ${isMaximized ? '' : 'top-20 left-1/2 -translate-x-1/2'}`}
+      className={`fixed overflow-hidden flex flex-col z-50 ${isMaximized ? '' : 'top-20 left-1/2 -translate-x-1/2'}`}
+      style={{
+        background:'rgba(9,15,26,0.72)',
+        backdropFilter:'blur(32px) saturate(1.5)',
+        WebkitBackdropFilter:'blur(32px) saturate(1.5)',
+        border:'1px solid rgba(255,255,255,0.07)',
+        boxShadow:'0 0 0 1px rgba(201,160,80,0.08), 0 40px 100px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)'
+      }}
       style={!isMaximized ? { x: '-50%' } : {}}
     >
-      {/* Window Header */}
-      <div className="h-10 bg-white/5 border-b border-white/5 px-4 flex items-center justify-between select-none cursor-grab active:cursor-grabbing">
-        <div className="flex items-center gap-2">
-          <BookOpen size={14} className="text-emerald-400" />
-          <span className="text-white/80 text-xs font-semibold tracking-tight uppercase line-clamp-1">{title}</span>
+      {/* Window Header - academic chrome */}
+      <div className="h-10 border-b px-4 flex items-center justify-between select-none cursor-grab active:cursor-grabbing"
+        style={{background:'rgba(255,255,255,0.03)', borderColor:'rgba(255,255,255,0.06)'}}>
+        {/* Nigerian flag accent line */}
+        <div className="absolute top-0 left-0 right-0 h-[2px] flex">
+          <div className="flex-1" style={{background:'#008751'}} />
+          <div className="flex-1 bg-white" />
+          <div className="flex-1" style={{background:'#008751'}} />
+        </div>
+        <div className="flex items-center gap-2 mt-0.5">
+          <GraduationCap size={13} style={{color:'var(--s-gold)'}} />
+          <span className="text-white/70 text-[11px] font-semibold tracking-widest uppercase line-clamp-1 scholar-mono">{title}</span>
         </div>
         <div className="flex items-center gap-2">
           {id === 'exam' && (
@@ -1563,7 +1654,8 @@ const OSWindow = ({ id, title, isOpen, isMinimized, isMaximized, onClose, onMini
 };
 
 const ResultCertificate = ({ user, score, total, examName }: { user: UserData | null, score: number, total: number, examName: string }) => (
-  <div className="flex flex-col items-center justify-center p-12 bg-white text-slate-900 border-[16px] border-slate-900 shadow-2xl relative h-full">
+  <div className="flex flex-col items-center justify-center p-12 text-slate-900 shadow-2xl relative h-full parchment-bg"
+    style={{border:'12px solid #1A1208'}}>
     <div className="absolute top-8 left-8 right-8 bottom-8 border border-slate-200 pointer-events-none" />
     <div className="flex flex-col items-center gap-4 mb-8">
       <GraduationCap size={48} className="text-slate-900" />
@@ -1840,7 +1932,7 @@ Student asked: ${textToSend}`,
             <Lock size={40} />
           </div>
           <div>
-            <h2 className="text-white text-2xl font-black uppercase tracking-tight">System Records Ready</h2>
+            <h2 className="text-white text-2xl scholar-heading">Results Sealed</h2>
             <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest mt-2">{examName} Submission Successful</p>
           </div>
         </div>
@@ -1881,7 +1973,11 @@ Student asked: ${textToSend}`,
   return (
     <div className="flex h-full bg-[#0a0f1d]/40">
       {/* Dynamic Header for CBT */}
-      <div className="absolute top-0 left-0 right-0 h-10 bg-emerald-500/10 backdrop-blur-md flex items-center justify-between px-6 border-b border-emerald-500/20 z-10">
+      <div className="absolute top-0 left-0 right-0 h-10 backdrop-blur-md flex items-center justify-between px-6 border-b z-10"
+        style={{
+          background: mode === 'EXAM' ? 'rgba(155,28,28,0.15)' : 'rgba(13,126,58,0.12)',
+          borderColor: mode === 'EXAM' ? 'rgba(239,68,68,0.2)' : 'rgba(13,126,58,0.2)'
+        }}>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <span className="text-emerald-400 text-[10px] font-black uppercase tracking-widest">{examName}</span>
@@ -2232,7 +2328,7 @@ const SystemSettingsContent = ({ user }: { user: UserData | null }) => {
           <Award size={48} className="text-emerald-400" />
         </div>
         <div>
-          <h2 className="text-4xl font-black text-white tracking-widest uppercase">Scholar OS</h2>
+          <h2 className="text-4xl scholar-heading text-white">ScholarOS</h2>
           <p className="text-emerald-400 font-mono text-sm">Version 1.0.4 (Enterprise Edition)</p>
         </div>
       </div>
@@ -2313,10 +2409,11 @@ const FolderContent = ({ category, onOpenExam }: { category: CategoryFolder, onO
                 key={sub}
                 whileHover={{ scale: 1.02, y: -2 }}
                 onClick={() => setSelectedSubject(sub)}
-                className="group p-5 bg-white/5 border border-white/5 rounded-xl hover:bg-emerald-500/10 hover:border-emerald-500/50 transition-all text-center flex flex-col items-center gap-2 relative overflow-hidden"
+                className={`group p-5 border rounded-xl transition-all text-center flex flex-col items-center gap-2 relative overflow-hidden ${getSubjectColor(sub)}`}
+                style={{background:'rgba(255,255,255,0.025)'}}
               >
-                <BookOpen size={20} className="text-emerald-400/60 group-hover:text-emerald-400 transition-colors" />
-                <div className="text-white text-sm font-bold tracking-tight group-hover:text-emerald-400 transition-colors">{sub}</div>
+                <BookOpen size={20} className="opacity-70 group-hover:opacity-100 transition-opacity" />
+                <div className="text-sm font-bold tracking-tight">{sub}</div>
               </motion.button>
             ))}
           </div>
@@ -2351,11 +2448,19 @@ const FolderContent = ({ category, onOpenExam }: { category: CategoryFolder, onO
                   key={year}
                   whileHover={{ scale: 1.02, y: -2 }}
                   onClick={() => onOpenExam(`${selectedExam.name} ${selectedSubject} - ${year}`, selectedExam.id, selectedSubject, year)}
-                  className="group p-4 bg-white/5 border border-white/5 rounded-xl hover:bg-emerald-500/10 hover:border-emerald-500/50 transition-all text-center flex flex-col items-center gap-1 relative overflow-hidden"
+                  className="group p-4 rounded-xl transition-all text-center flex flex-col items-center gap-1 relative overflow-hidden scholar-mono"
+                  style={{background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)'}}
+                  onMouseEnter={e => {
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(201,160,80,0.4)';
+                    (e.currentTarget as HTMLButtonElement).style.background = 'rgba(201,160,80,0.07)';
+                  }}
+                  onMouseLeave={e => {
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.06)';
+                    (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.03)';
+                  }}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <div className="text-white text-lg font-black tracking-tighter group-hover:text-emerald-400 transition-colors relative z-10">{year}</div>
-                  <div className="text-white/20 text-[8px] font-black uppercase group-hover:text-emerald-400/40 relative z-10">{selectedExam.id} ARCHIVE</div>
+                  <div className="text-white text-lg font-black tracking-tighter relative z-10 group-hover:text-[#C9A050] transition-colors">{year}</div>
+                  <div className="text-white/20 text-[8px] font-black uppercase relative z-10">{selectedExam.id}</div>
                 </motion.button>
               ))}
             </div>
@@ -2394,7 +2499,19 @@ const FolderContent = ({ category, onOpenExam }: { category: CategoryFolder, onO
           key={exam.id}
           whileHover={{ y: -4 }}
           onClick={() => setSelectedExamId(exam.id)}
-          className="group p-4 bg-white/5 border border-white/5 rounded-2xl hover:bg-white/10 hover:border-white/10 transition-all cursor-pointer flex flex-col items-center text-center gap-3"
+          className="group p-4 rounded-2xl transition-all cursor-pointer flex flex-col items-center text-center gap-3"
+          style={{
+            background:'rgba(255,255,255,0.03)',
+            border:'1px solid rgba(255,255,255,0.06)',
+          }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(201,160,80,0.3)';
+            (e.currentTarget as HTMLDivElement).style.background = 'rgba(201,160,80,0.04)';
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(255,255,255,0.06)';
+            (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.03)';
+          }}
         >
           <div className="relative">
             <div className="w-12 h-12 flex items-center justify-center rounded-xl bg-slate-800/80 text-emerald-400 group-hover:scale-110 transition-transform">
@@ -2430,15 +2547,23 @@ const Taskbar = ({ onOpenSettings, openWindows, onToggleWindow, user }: {
   }, []);
 
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-2 py-2 bg-white/5 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl z-[100]">
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-2 py-2 rounded-2xl z-[100]"
+      style={{
+        background:'rgba(5,9,15,0.75)',
+        backdropFilter:'blur(32px)',
+        WebkitBackdropFilter:'blur(32px)',
+        border:'1px solid rgba(255,255,255,0.07)',
+        boxShadow:'0 0 0 1px rgba(201,160,80,0.1), 0 20px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)'
+      }}>
       {/* Start Button */}
-      <div 
+      <div
         onClick={onOpenSettings}
-        className="hover:bg-white/10 p-2 rounded-xl border border-transparent hover:border-white/10 transition-all cursor-pointer group"
+        className="p-2 rounded-xl transition-all cursor-pointer group hover:bg-white/5"
       >
         <div className="relative">
-          <GraduationCap size={24} className="text-emerald-400 group-hover:scale-110 transition-transform" />
-          <div className="absolute inset-0 bg-emerald-400/20 blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
+          <GraduationCap size={24} style={{color:'var(--s-gold)'}} className="group-hover:scale-110 transition-transform drop-shadow-lg" />
+          <div className="absolute inset-0 blur-md opacity-0 group-hover:opacity-100 transition-opacity rounded-full"
+            style={{background:'var(--s-gold-glow)'}} />
         </div>
       </div>
 
@@ -2668,7 +2793,7 @@ export default function App() {
   };
 
   return (
-    <div className="relative w-full h-screen bg-[#020617] overflow-hidden font-sans">
+    <div className="relative w-full h-screen overflow-hidden" style={{background:"var(--s-navy)",fontFamily:"var(--font-sans)"}}>
       <AnimatePresence mode="wait">
         {phase === 'BOOT' && (
           <motion.div key="boot" exit={{ opacity: 0 }}>
@@ -2724,13 +2849,43 @@ export default function App() {
             animate={{ opacity: 1 }}
             className="w-full h-full"
           >
-            {/* Abstract Background Orbs */}
-            <div className="absolute top-[-10%] left-[-5%] w-[60%] h-[60%] bg-emerald-600/10 blur-[150px] rounded-full" />
-            <div className="absolute bottom-[-5%] right-[-5%] w-[40%] h-[40%] bg-blue-600/10 blur-[150px] rounded-full" />
-            <div className="absolute top-[20%] right-[10%] w-[30%] h-[30%] bg-gold-400/5 blur-[120px] rounded-full" />
+            {/* Academic Wallpaper: graph-paper grid + floating symbols */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-none select-none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+                  <path d="M 48 0 L 0 0 0 48" fill="none" stroke="rgba(255,255,255,0.028)" strokeWidth="0.5"/>
+                </pattern>
+                <pattern id="grid-major" width="240" height="240" patternUnits="userSpaceOnUse">
+                  <path d="M 240 0 L 0 0 0 240" fill="none" stroke="rgba(201,160,80,0.045)" strokeWidth="0.8"/>
+                </pattern>
+              </defs>
+              <rect width="100%" height="100%" fill="url(#grid)" />
+              <rect width="100%" height="100%" fill="url(#grid-major)" />
 
-            {/* Main Wallpaper Content (Subtle texture) */}
-            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.02] mix-blend-overlay" />
+              {/* Floating academic symbols - very faint */}
+              {[
+                { x:'8%',  y:'12%', sym:'π',   size:72,  op:0.04 },
+                { x:'85%', y:'8%',  sym:'Σ',   size:56,  op:0.03 },
+                { x:'92%', y:'55%', sym:'∫',   size:88,  op:0.035 },
+                { x:'5%',  y:'70%', sym:'∇',   size:60,  op:0.03 },
+                { x:'50%', y:'5%',  sym:'α',   size:48,  op:0.04 },
+                { x:'70%', y:'85%', sym:'β',   size:52,  op:0.035 },
+                { x:'25%', y:'90%', sym:'Δ',   size:64,  op:0.03 },
+                { x:'40%', y:'50%', sym:'∞',   size:96,  op:0.02 },
+                { x:'15%', y:'40%', sym:'λ',   size:44,  op:0.04 },
+                { x:'80%', y:'30%', sym:'θ',   size:50,  op:0.035 },
+              ].map((s,i) => (
+                <text key={i} x={s.x} y={s.y} fontSize={s.size} fill={`rgba(201,160,80,${s.op})`}
+                  fontFamily="Georgia,serif" fontWeight="bold">{s.sym}</text>
+              ))}
+            </svg>
+
+            {/* Deep dark radial vignette */}
+            <div className="absolute inset-0"
+              style={{background:'radial-gradient(ellipse at 30% 40%, rgba(13,126,58,0.06) 0%, transparent 55%), radial-gradient(ellipse at 80% 70%, rgba(29,78,216,0.05) 0%, transparent 50%)'}} />
+
+            {/* Nigerian flag strip at very bottom of desktop */}
+            <div className="absolute bottom-16 left-0 right-0 scholar-flag-strip opacity-30" />
 
             {/* Desktop Grid */}
             <div className="relative z-10 p-8 grid grid-cols-1 gap-12 w-fit">
