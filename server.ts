@@ -580,6 +580,182 @@ async function startServer() {
     res.status(410).json({ error: "Endpoint deprecated. AI insights are handled client-side." });
   });
 
+  // 5a. Forgot PIN - generates a new PIN and emails it
+  app.post("/api/forgot-pin", async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email) return res.status(400).json({ error: "Email is required" });
+
+      const q = query(collection(db, 'users'), where('email', '==', email));
+      const snapshot = await getDocs(q);
+
+      // Always return success to prevent email enumeration attacks
+      if (snapshot.empty) {
+        return res.json({ success: true, message: "If that email is registered, a new PIN has been sent." });
+      }
+
+      const userDoc = snapshot.docs[0];
+      const userData = userDoc.data();
+
+      if (userData.payment_status !== 'active') {
+        return res.json({ success: true, message: "If that email is registered, a new PIN has been sent." });
+      }
+
+      // Generate a fresh 6-digit PIN
+      const newPin = Math.floor(100000 + Math.random() * 900000).toString();
+      const hashedPin = await bcrypt.hash(newPin, 10);
+
+      await updateDoc(doc(db, 'users', userDoc.id), {
+        hashedPin,
+        updatedAt: serverTimestamp()
+      });
+
+      // Send new PIN via SMS
+      try {
+        if (process.env.TERMII_API_KEY) {
+          await termii.post('/sms/send', {
+            to: userData.phone,
+            from: "ScholarOS",
+            sms: `ScholarOS PIN Reset: Your new login PIN is ${newPin}. Do not share this with anyone.`,
+            type: "plain",
+            channel: "dnd",
+            api_key: process.env.TERMII_API_KEY
+          });
+        }
+      } catch (smsErr) { console.error("SMS error on reset:", smsErr); }
+
+      // Send new PIN via Email
+      try {
+        if (process.env.EMAIL_USER) {
+          await transporter.sendMail({
+            from: '"ScholarOS" <no-reply@scholaros.com>',
+            to: email,
+            subject: "ScholarOS - Your New Login PIN",
+            html: `
+              <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#020617;color:#fff;border-radius:16px;">
+                <h2 style="color:#10b981;margin-bottom:8px;">PIN Reset Request</h2>
+                <p style="color:#94a3b8;">Hello <b>${userData.username}</b>,</p>
+                <p style="color:#94a3b8;">A new access PIN has been generated for your ScholarOS account.</p>
+                <div style="background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:24px;text-align:center;margin:24px 0;">
+                  <div style="font-size:12px;color:#10b981;font-weight:bold;letter-spacing:4px;margin-bottom:8px;">YOUR NEW PIN</div>
+                  <div style="font-size:36px;font-weight:900;letter-spacing:12px;color:#fff;font-family:monospace;">${newPin}</div>
+                </div>
+                <p style="color:#64748b;font-size:12px;">If you did not request this, please contact support immediately. Do not share your PIN with anyone.</p>
+              </div>
+            `
+          });
+        }
+      } catch (mailErr) { console.error("Mail error on reset:", mailErr); }
+
+      res.json({ success: true, message: "If that email is registered, a new PIN has been sent." });
+    } catch (error: any) {
+      console.error("Forgot PIN Error:", error.message);
+      res.status(500).json({ error: "PIN reset failed. Please try again." });
+    }
+  });
+
+  // 5b. Update Exam Date for countdown
+  app.post("/api/set-exam-date", async (req, res) => {
+    try {
+      const { userId, examDate, examName } = req.body;
+      if (!userId || !examDate) return res.status(400).json({ error: "userId and examDate required" });
+
+      await updateDoc(doc(db, 'users', userId), {
+        examDate,
+        examName: examName || 'My Exam',
+        updatedAt: serverTimestamp()
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to save exam date" });
+    }
+  });
+
+  // 5c. Save a question to Mistakes Bank
+  app.post("/api/mistakes-bank/add", async (req, res) => {
+    try {
+      const { userId, question } = req.body;
+      if (!userId || !question) return res.status(400).json({ error: "userId and question required" });
+
+      const userRef = doc(db, 'users', userId);
+      const userDoc = await getDoc(userRef);
+      if (!userDoc.exists()) return res.status(404).json({ error: "User not found" });
+
+      const current = userDoc.data().mistakesBank || [];
+      // Prevent duplicates by alocId or question text hash
+      const exists = current.some((q: any) => q.text === question.text);
+      if (!exists) {
+        await updateDoc(userRef, {
+          mistakesBank: [...current, { ...question, savedAt: new Date().toISOString() }].slice(-200) // cap at 200
+        });
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to save to Mistakes Bank" });
+    }
+  });
+
+  // 5d. Get Mistakes Bank
+  app.get("/api/mistakes-bank", async (req, res) => {
+    try {
+      const { userId } = req.query as Record<string, string>;
+      if (!userId) return res.status(400).json({ error: "userId required" });
+
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (!userDoc.exists()) return res.status(404).json({ error: "User not found" });
+
+      res.json({ success: true, questions: userDoc.data().mistakesBank || [] });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch Mistakes Bank" });
+    }
+  });
+
+  // 5e. Admin Stats
+  app.get("/api/admin/stats", async (req, res) => {
+    try {
+      const { adminUsername } = req.query as Record<string, string>;
+      if (!adminUsername) return res.status(401).json({ error: "Unauthorized" });
+
+      const adminQ = query(collection(db, 'users'), where('username', '==', adminUsername));
+      const adminSnap = await getDocs(adminQ);
+      if (adminSnap.empty || !adminSnap.docs[0].data().isAdmin) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Total users
+      const usersSnap = await getDocs(collection(db, 'users'));
+      const totalUsers = usersSnap.size;
+      const activeUsers = usersSnap.docs.filter(d => d.data().payment_status === 'active').length;
+
+      // Total questions
+      const qSnap = await getDocs(collection(db, 'questions'));
+      const totalQuestions = qSnap.size;
+
+      // Total exams taken
+      const resultsSnap = await getDocs(collection(db, 'results'));
+      const totalExams = resultsSnap.size;
+
+      // Revenue estimate (active users * 2500 NGN)
+      const estimatedRevenue = activeUsers * 2500;
+
+      res.json({
+        success: true,
+        stats: {
+          totalUsers,
+          activeUsers,
+          pendingUsers: totalUsers - activeUsers,
+          totalQuestions,
+          totalExams,
+          estimatedRevenue,
+        }
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: "Admin stats failed" });
+    }
+  });
+
   // 5. Verify PIN for Result Decryption
   app.post("/api/verify-pin", async (req, res) => {
     try {

@@ -68,6 +68,9 @@ interface UserData {
   badges: string[];
   topicPerformance: Record<string, { correct: number, total: number }>;
   isAdmin?: boolean;
+  examDate?: string;       // ISO date string e.g. "2026-06-15"
+  examName?: string;       // "JAMB 2026"
+  mistakesBank?: Question[];
 }
 
 const BADGES = {
@@ -580,6 +583,8 @@ const AnalyticsDashboard = ({ user }: { user: UserData | null }) => {
         </div>
       </div>
 
+      <PredictedScore user={user} examCategory={user?.examCategory || 'JAMB UTME'} />
+
       <div className="flex flex-col gap-6">
         <div>
           <h3 className="text-white text-xs font-black uppercase tracking-widest mb-4">Trophy Cabinet</h3>
@@ -668,6 +673,433 @@ const LeaderboardWindow = () => {
     </div>
   );
 };
+// ============================================================
+// PREMIUM COMPONENT: Sound Engine
+// ============================================================
+const SoundEngine = {
+  ctx: null as AudioContext | null,
+  getCtx() {
+    if (!this.ctx) this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    return this.ctx;
+  },
+  play(type: 'correct' | 'wrong' | 'click' | 'boot' | 'unlock') {
+    try {
+      const ctx = this.getCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      const configs = {
+        correct: { freq: [523, 659, 784], dur: 0.12, vol: 0.18, wave: 'sine' as OscillatorType },
+        wrong:   { freq: [220, 180],      dur: 0.18, vol: 0.12, wave: 'sawtooth' as OscillatorType },
+        click:   { freq: [800],            dur: 0.04, vol: 0.06, wave: 'sine' as OscillatorType },
+        boot:    { freq: [220, 440, 880],  dur: 0.2,  vol: 0.1,  wave: 'sine' as OscillatorType },
+        unlock:  { freq: [523, 659, 784, 1046], dur: 0.15, vol: 0.15, wave: 'sine' as OscillatorType },
+      };
+
+      const cfg = configs[type];
+      osc.type = cfg.wave;
+      gain.gain.setValueAtTime(cfg.vol, ctx.currentTime);
+
+      cfg.freq.forEach((f, i) => {
+        osc.frequency.setValueAtTime(f, ctx.currentTime + i * cfg.dur);
+      });
+
+      const totalDur = cfg.freq.length * cfg.dur;
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + totalDur + 0.1);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + totalDur + 0.1);
+    } catch {}
+  }
+};
+
+// ============================================================
+// PREMIUM COMPONENT: Exam Countdown Widget
+// ============================================================
+const ExamCountdownWidget = ({ user, onSetDate }: { user: UserData | null, onSetDate: () => void }) => {
+  const [daysLeft, setDaysLeft] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!user?.examDate) return;
+    const exam = new Date(user.examDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diff = Math.ceil((exam.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    setDaysLeft(diff);
+  }, [user?.examDate]);
+
+  if (!user?.examDate || daysLeft === null) {
+    return (
+      <motion.div
+        whileHover={{ y: -3 }}
+        onClick={onSetDate}
+        className="flex flex-col items-center gap-2 w-24 select-none cursor-pointer group"
+      >
+        <div className="relative w-16 h-16 flex items-center justify-center rounded-2xl bg-white/5 backdrop-blur-md border border-dashed border-white/20 hover:border-emerald-400/50 transition-all">
+          <Clock size={24} className="text-white/30 group-hover:text-emerald-400 transition-colors" />
+        </div>
+        <span className="text-white/40 text-[10px] font-medium tracking-wide text-center group-hover:text-white/60 transition-colors">Set Exam Date</span>
+      </motion.div>
+    );
+  }
+
+  const urgency = daysLeft <= 7 ? 'text-red-400 border-red-500/40 bg-red-500/10' :
+                  daysLeft <= 30 ? 'text-amber-400 border-amber-500/40 bg-amber-500/10' :
+                  'text-emerald-400 border-emerald-500/40 bg-emerald-500/10';
+
+  return (
+    <motion.div whileHover={{ y: -3 }} onClick={onSetDate} className="flex flex-col items-center gap-2 w-24 select-none cursor-pointer">
+      <div className={`relative w-16 h-16 flex flex-col items-center justify-center rounded-2xl border backdrop-blur-md ${urgency} transition-all`}>
+        {daysLeft <= 0 ? (
+          <span className="text-[8px] font-black text-center leading-tight">EXAM DAY!</span>
+        ) : (
+          <>
+            <span className="text-lg font-black leading-none">{daysLeft}</span>
+            <span className="text-[7px] font-black uppercase tracking-widest opacity-60">days</span>
+          </>
+        )}
+        {daysLeft <= 7 && daysLeft > 0 && (
+          <motion.div animate={{ opacity: [1, 0.3, 1] }} transition={{ repeat: Infinity, duration: 1.5 }}
+            className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-slate-900" />
+        )}
+      </div>
+      <span className="text-white text-[9px] font-medium tracking-wide text-center leading-tight">
+        {user.examName || 'My Exam'}
+      </span>
+    </motion.div>
+  );
+};
+
+// ============================================================
+// PREMIUM COMPONENT: Set Exam Date Modal
+// ============================================================
+const SetExamDateModal = ({ user, onClose, onSave }: { user: UserData | null, onClose: () => void, onSave: (date: string, name: string) => void }) => {
+  const [examDate, setExamDate] = useState(user?.examDate || '');
+  const [examName, setExamName] = useState(user?.examName || 'JAMB 2026');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!examDate || !user) return;
+    setSaving(true);
+    try {
+      await axios.post('/api/set-exam-date', { userId: user.id, examDate, examName });
+      onSave(examDate, examName);
+      SoundEngine.play('unlock');
+    } catch {}
+    setSaving(false);
+    onClose();
+  };
+
+  const today = new Date().toISOString().split('T')[0];
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
+      <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}
+        className="w-full max-w-sm bg-slate-900 border border-white/10 rounded-3xl p-8 shadow-2xl">
+        <div className="flex flex-col gap-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-emerald-500/20 rounded-2xl"><Clock size={24} className="text-emerald-400" /></div>
+            <div>
+              <h2 className="text-white font-black uppercase tracking-tight">Set Exam Date</h2>
+              <p className="text-white/40 text-[10px] uppercase font-bold tracking-widest mt-1">Activate Countdown Timer</p>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-white/40 uppercase tracking-widest">Exam Name</label>
+            <select value={examName} onChange={e => setExamName(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500/50 transition-all">
+              {['JAMB UTME 2026','WAEC WASSCE 2026','NECO SSCE 2026','ICAN Diet 2026','Bar Finals 2026','Post-UTME 2026'].map(n => (
+                <option key={n} className="bg-slate-900" value={n}>{n}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-white/40 uppercase tracking-widest">Exam Date</label>
+            <input type="date" min={today} value={examDate} onChange={e => setExamDate(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500/50 transition-all" />
+          </div>
+
+          <div className="flex gap-3">
+            <button onClick={onClose} className="flex-1 py-3 bg-white/5 border border-white/10 text-white/60 rounded-xl font-black uppercase text-[10px] tracking-widest">Cancel</button>
+            <button onClick={handleSave} disabled={!examDate || saving}
+              className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl font-black uppercase text-[10px] tracking-widest disabled:opacity-50 transition-all">
+              {saving ? 'Saving...' : 'Activate'}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+// ============================================================
+// PREMIUM COMPONENT: Forgot PIN Modal
+// ============================================================
+const ForgotPinModal = ({ onClose }: { onClose: () => void }) => {
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async () => {
+    if (!email) return;
+    setLoading(true);
+    setError('');
+    try {
+      await axios.post('/api/forgot-pin', { email });
+      setSent(true);
+      SoundEngine.play('unlock');
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Request failed. Try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
+      <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}
+        className="w-full max-w-sm bg-slate-900 border border-white/10 rounded-3xl p-8 shadow-2xl">
+        {sent ? (
+          <div className="flex flex-col items-center gap-6 text-center">
+            <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center border border-emerald-500/30">
+              <Check size={32} className="text-emerald-400" />
+            </div>
+            <div>
+              <h2 className="text-white font-black uppercase tracking-tight">Check Your Phone</h2>
+              <p className="text-white/40 text-xs mt-2 leading-relaxed">If that email is registered, your new PIN has been sent via SMS and email. Check both.</p>
+            </div>
+            <button onClick={onClose} className="w-full py-3 bg-emerald-500 text-white rounded-xl font-black uppercase text-[10px] tracking-widest">Back to Login</button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-6">
+            <div>
+              <h2 className="text-white font-black uppercase tracking-tight">Reset PIN</h2>
+              <p className="text-white/40 text-xs mt-1">Enter your registered email and we will send a new PIN to your phone and inbox.</p>
+            </div>
+            <input type="email" placeholder="your@email.com" value={email} onChange={e => setEmail(e.target.value)}
+              onKeyPress={e => e.key === 'Enter' && handleSubmit()}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/20 focus:outline-none focus:border-emerald-500/50 transition-all font-mono" />
+            {error && <div className="text-red-400 text-[10px] font-bold text-center">{error}</div>}
+            <div className="flex gap-3">
+              <button onClick={onClose} className="flex-1 py-3 bg-white/5 border border-white/10 text-white/60 rounded-xl font-black uppercase text-[10px] tracking-widest">Cancel</button>
+              <button onClick={handleSubmit} disabled={!email || loading}
+                className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl font-black uppercase text-[10px] tracking-widest disabled:opacity-50 transition-all">
+                {loading ? 'Sending...' : 'Send New PIN'}
+              </button>
+            </div>
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+};
+
+// ============================================================
+// PREMIUM COMPONENT: Mistakes Bank Window
+// ============================================================
+const MistakesBankWindow = ({ user, onStartReview }: { user: UserData | null, onStartReview: (questions: Question[]) => void }) => {
+  const [mistakes, setMistakes] = useState<Question[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    axios.get('/api/mistakes-bank', { params: { userId: user.id } })
+      .then(res => setMistakes(res.data.questions || []))
+      .catch(() => setMistakes([]))
+      .finally(() => setLoading(false));
+  }, [user?.id]);
+
+  return (
+    <div className="flex flex-col h-full bg-[#0a0f1d]">
+      <div className="p-6 border-b border-white/5 flex items-center justify-between">
+        <div>
+          <h2 className="text-white text-xl font-black uppercase tracking-tight">Mistakes Bank</h2>
+          <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest mt-1">{mistakes.length} Saved Questions for Revision</p>
+        </div>
+        {mistakes.length > 0 && (
+          <button onClick={() => onStartReview(mistakes)}
+            className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-white text-[10px] font-black uppercase rounded-xl tracking-widest transition-all shadow-lg shadow-emerald-500/20">
+            Start Revision
+          </button>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-y-auto no-scrollbar p-4">
+        {loading ? (
+          <div className="flex items-center justify-center h-32 text-white/20 text-xs uppercase font-black tracking-widest animate-pulse">Loading Bank...</div>
+        ) : mistakes.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-8">
+            <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center"><BookOpen size={32} className="text-white/20" /></div>
+            <div>
+              <div className="text-white/40 font-black uppercase text-sm tracking-wide">Bank is Empty</div>
+              <p className="text-white/20 text-[10px] mt-2">Questions you get wrong during exams are automatically saved here for revision.</p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {mistakes.map((q, i) => (
+              <div key={i} className="bg-white/5 border border-white/5 rounded-2xl p-5 hover:border-white/10 transition-all">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="px-2 py-0.5 bg-red-500/20 text-red-400 text-[8px] font-black rounded uppercase">{q.topic}</span>
+                  <span className="text-white/20 text-[8px]">{q.subject}</span>
+                </div>
+                <p className="text-white/80 text-sm leading-relaxed mb-3">{q.text}</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] text-white/30 uppercase font-bold">Answer:</span>
+                  <span className="text-emerald-400 text-[10px] font-black">{q.correctAnswer}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ============================================================
+// PREMIUM COMPONENT: Admin Dashboard
+// ============================================================
+const AdminDashboard = ({ user }: { user: UserData | null }) => {
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user?.isAdmin) return;
+    axios.get('/api/admin/stats', { params: { adminUsername: user.username } })
+      .then(res => setStats(res.data.stats))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [user]);
+
+  if (!user?.isAdmin) return (
+    <div className="flex items-center justify-center h-full">
+      <p className="text-white/20 font-black uppercase text-sm tracking-widest">Access Denied</p>
+    </div>
+  );
+
+  const statCards = stats ? [
+    { label: 'Total Users', value: stats.totalUsers, color: 'text-blue-400', sub: `${stats.pendingUsers} pending payment` },
+    { label: 'Active Licenses', value: stats.activeUsers, color: 'text-emerald-400', sub: 'Paid accounts' },
+    { label: 'Questions in DB', value: stats.totalQuestions?.toLocaleString(), color: 'text-amber-400', sub: 'Across all exams' },
+    { label: 'Exams Taken', value: stats.totalExams, color: 'text-purple-400', sub: 'Total sessions' },
+    { label: 'Est. Revenue', value: `₦${stats.estimatedRevenue?.toLocaleString()}`, color: 'text-gold-400', sub: 'Lifetime estimate' },
+  ] : [];
+
+  return (
+    <div className="flex flex-col h-full bg-[#0a0f1d] overflow-y-auto no-scrollbar p-8 gap-8">
+      <div className="flex items-center gap-4">
+        <div className="p-3 bg-red-500/20 rounded-2xl border border-red-500/30"><Layout size={24} className="text-red-400" /></div>
+        <div>
+          <h2 className="text-white text-xl font-black uppercase tracking-tight">System Administration</h2>
+          <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest mt-1">Root Access - ScholarOS Backend</p>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="text-white/20 text-xs uppercase font-black tracking-widest animate-pulse">Fetching system metrics...</div>
+      ) : (
+        <div className="grid grid-cols-3 gap-4">
+          {statCards.map((card, i) => (
+            <div key={i} className="bg-white/5 border border-white/5 rounded-3xl p-6 flex flex-col gap-2">
+              <span className="text-[9px] text-white/30 font-black uppercase tracking-widest">{card.label}</span>
+              <span className={`text-3xl font-black tracking-tighter ${card.color}`}>{card.value ?? '...'}</span>
+              <span className="text-[9px] text-white/20 font-medium">{card.sub}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="bg-white/5 border border-white/5 rounded-3xl p-6">
+        <h3 className="text-white text-[10px] font-black uppercase tracking-widest mb-4 border-l-2 border-red-500 pl-3">Admin Credentials</h3>
+        <div className="grid grid-cols-2 gap-3 text-[11px]">
+          {[
+            ['Admin Login', 'username: admin, PIN: 000000'],
+            ['Firebase', 'Firestore (Client SDK)'],
+            ['Payment', 'Paystack API'],
+            ['SMS', 'Termii Nigeria'],
+          ].map(([k, v]) => (
+            <div key={k} className="bg-white/5 rounded-xl p-3">
+              <div className="text-white/30 uppercase font-black text-[8px] tracking-widest mb-1">{k}</div>
+              <div className="text-white/70 font-mono">{v}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================
+// PREMIUM COMPONENT: Predicted Score
+// ============================================================
+const PredictedScore = ({ user, examCategory }: { user: UserData | null, examCategory: string }) => {
+  const examMaxScores: Record<string, number> = {
+    'JAMB UTME': 400, 'WAEC WASSCE': 9, 'NECO SSCE': 9,
+    'ICAN': 100, 'Bar Exams': 100,
+  };
+
+  const maxScore = examMaxScores[examCategory] || 400;
+  const totalCorrect = Object.values(user?.topicPerformance || {}).reduce((a, b) => a + b.correct, 0);
+  const totalAttempted = Object.values(user?.topicPerformance || {}).reduce((a, b) => a + b.total, 0);
+  const accuracy = totalAttempted > 0 ? totalCorrect / totalAttempted : 0;
+  const predicted = Math.round(accuracy * maxScore);
+  const confidence = Math.min(Math.round((totalAttempted / 200) * 100), 95);
+
+  if (totalAttempted < 10) return null;
+
+  return (
+    <div className="bg-blue-500/10 border border-blue-500/20 rounded-3xl p-6 flex items-center gap-6">
+      <div className="flex flex-col items-center gap-1">
+        <span className="text-[9px] text-white/40 font-black uppercase tracking-widest">Predicted Score</span>
+        <span className="text-4xl font-black text-blue-400 tracking-tighter">{predicted}</span>
+        <span className="text-[9px] text-white/20 font-bold">out of {maxScore}</span>
+      </div>
+      <div className="flex-1 flex flex-col gap-2">
+        <div className="flex justify-between text-[9px]">
+          <span className="text-white/40 font-black uppercase">Confidence Level</span>
+          <span className="text-blue-400 font-black">{confidence}%</span>
+        </div>
+        <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+          <motion.div initial={{ width: 0 }} animate={{ width: `${confidence}%` }}
+            className="h-full bg-blue-500 rounded-full" />
+        </div>
+        <p className="text-[9px] text-white/30 leading-relaxed">
+          Based on {totalAttempted} questions practiced. Answer more questions to improve prediction accuracy.
+        </p>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================
+// PREMIUM COMPONENT: WhatsApp Score Share
+// ============================================================
+const WhatsAppShare = ({ username, score, total, examName }: { username: string, score: number, total: number, examName: string }) => {
+  const percent = ((score / total) * 100).toFixed(1);
+  const emoji = parseFloat(percent) >= 80 ? '🎉' : parseFloat(percent) >= 60 ? '💪' : '📚';
+  const message = `${emoji} I just scored ${score}/${total} (${percent}%) on ${examName} using ScholarOS! The AI-powered Nigerian exam prep system is 🔥. Try it at scholaros.ng`;
+
+  const handleShare = () => {
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+    SoundEngine.play('click');
+  };
+
+  return (
+    <button onClick={handleShare}
+      className="flex items-center gap-3 px-5 py-3 bg-[#25D366]/20 border border-[#25D366]/30 text-[#25D366] rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-[#25D366]/30 transition-all">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+      </svg>
+      Share on WhatsApp
+    </button>
+  );
+};
+
 const BOOT_MESSAGES = [
   "[  OK  ] Initializing Scholar OS Kernel v5.0.4...",
   "[  OK  ] Mounting Educational Repositories...",
@@ -870,10 +1302,12 @@ const RegistrationScreen = ({
 
 const LockScreen = ({ 
   onLogin, 
-  onRegister 
+  onRegister,
+  onForgotPin
 }: { 
   onLogin: (username: string, pin: string) => Promise<boolean>, 
-  onRegister: () => void 
+  onRegister: () => void,
+  onForgotPin: () => void
 }) => {
   const [username, setUsername] = useState("");
   const [pin, setPin] = useState("");
@@ -991,7 +1425,7 @@ const LockScreen = ({
             <Settings size={20} />
             <span className="text-[10px] font-bold uppercase tracking-widest">Settings</span>
           </button>
-          <button className="flex flex-col items-center gap-2 hover:text-red-400/60 transition-colors">
+          <button onClick={onForgotPin} className="flex flex-col items-center gap-2 hover:text-red-400/60 transition-colors">
              <HelpCircle size={20} />
             <span className="text-[10px] font-bold uppercase tracking-widest">Forgot PIN?</span>
           </button>
@@ -1159,17 +1593,22 @@ const ResultCertificate = ({ user, score, total, examName }: { user: UserData | 
       </div>
     </div>
 
-    <div className="mt-auto w-full flex justify-between items-end pt-12">
-      <div className="flex flex-col items-center">
-        <div className="w-32 h-[1px] bg-slate-200 mb-2" />
-        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">AI Examiner ID: CEREBRO-01</span>
+    <div className="mt-auto w-full flex flex-col gap-6 pt-12">
+      <div className="flex justify-between items-end">
+        <div className="flex flex-col items-center">
+          <div className="w-32 h-[1px] bg-slate-200 mb-2" />
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">AI Examiner ID: CEREBRO-01</span>
+        </div>
+        <div className="p-4 bg-slate-50 border border-slate-100 rounded-lg">
+          <Award size={32} className="text-slate-200" />
+        </div>
+        <div className="flex flex-col items-center">
+          <div className="w-32 h-[1px] bg-slate-200 mb-2" />
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Date: {new Date().toLocaleDateString()}</span>
+        </div>
       </div>
-      <div className="p-4 bg-slate-50 border border-slate-100 rounded-lg">
-        <Award size={32} className="text-slate-200" />
-      </div>
-      <div className="flex flex-col items-center">
-        <div className="w-32 h-[1px] bg-slate-200 mb-2" />
-        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Date: {new Date().toLocaleDateString()}</span>
+      <div className="flex justify-center">
+        <WhatsAppShare username={user?.username || ''} score={score} total={total} examName={examName} />
       </div>
     </div>
   </div>
@@ -1253,6 +1692,14 @@ const ExamContent = ({ examName, user, mode, setUser, questions = SAMPLE_JAMB_QU
     });
 
     try {
+      // Auto-save wrong questions to Mistakes Bank
+      const wrongQuestions = questions.filter(q => selectedOptions[q.id] !== q.correctAnswer);
+      if (user?.id && wrongQuestions.length > 0) {
+        for (const wq of wrongQuestions.slice(0, 20)) { // cap per session
+          axios.post('/api/mistakes-bank/add', { userId: user.id, question: wq }).catch(() => {});
+        }
+      }
+
       const timeTaken = Math.floor((Date.now() - startTime.current) / 1000);
       await axios.post('/api/results', {
         userId: user?.id,
@@ -1511,6 +1958,13 @@ Student asked: ${textToSend}`,
                   if (isSelected || isAdvancing) return;
                   setSelectedOptions(prev => ({ ...prev, [currentQuestion.id]: option.id }));
                   
+                  // Sound feedback
+                  if (option.id === currentQuestion.correctAnswer) {
+                    SoundEngine.play('correct');
+                  } else {
+                    SoundEngine.play('wrong');
+                  }
+
                   if (mode === 'STUDY') {
                     handleSendMessage(`Explain this question. I selected ${option.id}.`, option.id);
                   }
@@ -2095,7 +2549,13 @@ export default function App() {
   
   const [examMode, setExamMode] = useState<ExamMode | null>(null);
   const [showPremiumModal, setShowPremiumModal] = useState<string | null>(null); 
-  const [showModeModal, setShowModeModal] = useState<string | null>(null); 
+  const [showModeModal, setShowModeModal] = useState<string | null>(null);
+  
+  // Premium feature state
+  const [showForgotPin, setShowForgotPin] = useState(false);
+  const [showSetExamDate, setShowSetExamDate] = useState(false);
+  const [showMistakesBank, setShowMistakesBank] = useState(false);
+  const [showAdminDash, setShowAdminDash] = useState(false);
 
   const getScholarPrintQuestions = (userData: UserData | null) => {
     if (!userData || !userData.topicPerformance || Object.keys(userData.topicPerformance).length === 0) {
@@ -2228,6 +2688,7 @@ export default function App() {
               onLogin={async (username, pin) => {
                 const response = await axios.post('/api/login', { username, pin });
                 if (response.data.success) {
+                  SoundEngine.play('unlock');
                   setUser(response.data.user);
                   setPhase('DESKTOP');
                   return true;
@@ -2235,6 +2696,7 @@ export default function App() {
                 return false;
               }} 
               onRegister={() => setPhase('REGISTRATION')}
+              onForgotPin={() => setShowForgotPin(true)}
             />
           </motion.div>
         )}
@@ -2291,6 +2753,7 @@ export default function App() {
                   />
                 );
               })}
+              <ExamCountdownWidget user={user} onSetDate={() => setShowSetExamDate(true)} />
               <DesktopIcon 
                 label="Analytics Dashboard" 
                 icon={<TrendingUp />} 
@@ -2303,6 +2766,20 @@ export default function App() {
                 color="bg-gold-400" 
                 onClick={() => toggleWindowState('leaderboard', { isOpen: true, isMinimized: false })}
               />
+              <DesktopIcon 
+                label="Mistakes Bank" 
+                icon={<BookOpen />} 
+                color="bg-red-500" 
+                onClick={() => setShowMistakesBank(true)}
+              />
+              {user?.isAdmin && (
+                <DesktopIcon 
+                  label="Admin Panel" 
+                  icon={<Layout />} 
+                  color="bg-red-700" 
+                  onClick={() => setShowAdminDash(true)}
+                />
+              )}
               <DesktopIcon 
                 label="Scholar OS Settings" 
                 icon={<Settings />} 
@@ -2482,6 +2959,71 @@ export default function App() {
               setShowModeModal(null);
             }}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Forgot PIN Modal */}
+      <AnimatePresence>
+        {showForgotPin && <ForgotPinModal onClose={() => setShowForgotPin(false)} />}
+      </AnimatePresence>
+
+      {/* Set Exam Date Modal */}
+      <AnimatePresence>
+        {showSetExamDate && (
+          <SetExamDateModal
+            user={user}
+            onClose={() => setShowSetExamDate(false)}
+            onSave={(date, name) => {
+              if (user) setUser({ ...user, examDate: date, examName: name });
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Mistakes Bank Modal */}
+      <AnimatePresence>
+        {showMistakesBank && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
+            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }}
+              className="w-full max-w-2xl h-[80vh] bg-slate-900 border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
+                <span className="text-white font-black uppercase tracking-widest text-sm">Mistakes Bank</span>
+                <button onClick={() => setShowMistakesBank(false)} className="text-white/40 hover:text-red-400 transition-colors"><X size={20} /></button>
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <MistakesBankWindow
+                  user={user}
+                  onStartReview={(questions) => {
+                    setActiveExamQuestions(questions);
+                    setActiveExamName('Mistakes Bank Revision');
+                    setShowMistakesBank(false);
+                    setExamMode('STUDY');
+                    toggleWindowState('exam', { isOpen: true, isMinimized: false, title: 'Mistakes Bank - Revision Session' });
+                  }}
+                />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Admin Dashboard Modal */}
+      <AnimatePresence>
+        {showAdminDash && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
+            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }}
+              className="w-full max-w-3xl h-[80vh] bg-slate-900 border border-red-500/20 rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-red-500/5">
+                <span className="text-red-400 font-black uppercase tracking-widest text-sm">Root Administration</span>
+                <button onClick={() => setShowAdminDash(false)} className="text-white/40 hover:text-red-400 transition-colors"><X size={20} /></button>
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <AdminDashboard user={user} />
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 

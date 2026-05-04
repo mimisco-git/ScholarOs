@@ -1,0 +1,33 @@
+{
+  "name": "ScholarOS - The Intelligence of Achievement",
+  "short_name": "ScholarOS",
+  "description": "Nigeria's premier AI-powered exam preparation system",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#10b981",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='40' fill='%23020617'/><text y='0.9em' font-size='140' x='20'>🎓</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='100' fill='%23020617'/><text y='0.9em' font-size='380' x='50'>🎓</text></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["education", "productivity"],
+  "lang": "en-NG",
+  "shortcuts": [
+    {
+      "name": "Start JAMB Practice",
+      "url": "/?open=jamb",
+      "description": "Jump straight into JAMB past questions"
+    }
+  ]
+}
