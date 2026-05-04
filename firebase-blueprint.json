@@ -1,0 +1,61 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Registered users of ScholarOS",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "examCategory": { "type": "string" },
+        "payment_status": { 
+          "type": "string", 
+          "enum": ["pending", "active"] 
+        },
+        "purchased_modules": { 
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "xp": { "type": "integer" },
+        "streak": { "type": "integer" },
+        "lastActiveDate": { "type": "string", "format": "date" },
+        "badges": { "type": "array", "items": { "type": "string" } },
+        "topicPerformance": { 
+          "type": "object",
+          "description": "Map of topic names to accuracy percentages" 
+        },
+        "reference_id": { "type": "string" },
+        "hashedPin": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["username", "email", "phone", "examCategory", "payment_status", "createdAt"]
+    },
+    "Result": {
+      "title": "Result",
+      "description": "Exam performance records",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "examType": { "type": "string" },
+        "year": { "type": "string" },
+        "score": { "type": "number" },
+        "total": { "type": "number" },
+        "incorrectQuestions": { "type": "array", "items": { "type": "integer" } },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "examType", "score", "total", "timestamp"]
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": "User",
+      "description": "Collection of registered users"
+    },
+    "results": {
+      "schema": "Result",
+      "description": "Collection of exam results"
+    }
+  }
+}
